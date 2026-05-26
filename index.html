@@ -73,12 +73,18 @@ function getRequiredMonths() {
   return SEASON_MONTHS.slice(0, endSlice);
 }
 
+// Convierte cualquier URL de Google Sheets a una URL de descarga CSV directa.
+// Usa el endpoint /export?format=csv que es más compatible que gviz/tq.
 function toDirectCsvUrl(url) {
   if (!url || !url.includes("docs.google.com/spreadsheets/d/")) return url;
+  // Si ya es una URL de export CSV, devolverla tal cual
   if (url.includes("export?format=csv") || url.includes("output=csv")) return url;
+  
   const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
   if (!idMatch) return url;
   const docId = idMatch[1];
+  
+  // Extraer gid si existe (identifica la hoja concreta)
   const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
   let csvUrl = `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv`;
   if (gidMatch) csvUrl += `&gid=${gidMatch[1]}`;
@@ -96,72 +102,39 @@ function normalizeSheetData(rawData) {
   // Si es un array de arrays (generado por Papa.parse con header: false)
   if (Array.isArray(rawData[0])) {
      // Detectar si es el Excel complejo en euskera analizando las primeras filas
-     const isBasqueSheet = rawData.length > 2 && Array.isArray(rawData[1]) && rawData[1].includes("HILEROKOA");
+     const isBasqueSheet = rawData.length > 2 && rawData.slice(0,6).some(r => Array.isArray(r) && (r.includes("MULTAK") || r.includes("HILEROKOA") || r.includes("Abuztua")));
      
      if (isBasqueSheet) {
-       const normalized = [];
-       const basqueToES = {
-         "Abuztua": "Ago", "Iraila": "Sep", "Urria": "Oct", "Azaroa": "Nov",
-         "Abendua": "Dic", "Urtarrila": "Ene", "Otsaila": "Feb",
-         "Martxoa": "Mar", "Apirila": "Abr", "Maiatza": "May", "Ekaina": "Jun"
-       };
-       const basqueMonthNames = Object.keys(basqueToES);
+        const normalized = [];
+        const multaMonths = ["Ago","Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May"];
+        const cuotaMonths = ["Ago","Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May"];
+        const balonMonths = ["Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May"];
+        const skipWords = new Set(["abuztua","iraila","urria","azaroa","abendua","urtarrila","otsaila","martxoa","apirila","maiatza","ekaina","multak","hilerokoa","baloiak","bakoitzak guztira","guztira",""]);
 
-       let headerRowIdx = -1;
-       for (let i = 0; i < Math.min(rawData.length, 8); i++) {
-         if (rawData[i] && rawData[i].some(cell => basqueMonthNames.includes((cell||"").toString().trim()))) {
-           headerRowIdx = i;
-           break;
-         }
-       }
+        // Detectar en qué columna están los nombres (col 0 o col 1)
+        let nameCol = 1;
+        for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+          const row = rawData[i];
+          if (!row) continue;
+          const c0 = (row[0]||"").toString().trim();
+          const c1 = (row[1]||"").toString().trim();
+          if (c0 && !skipWords.has(c0.toLowerCase()) && /[a-zA-ZáéíóúñÁÉÍÓÚÑ]/.test(c0) && c0.includes(" ")) { nameCol = 0; break; }
+          if (c1 && !skipWords.has(c1.toLowerCase()) && /[a-zA-ZáéíóúñÁÉÍÓÚÑ]/.test(c1) && c1.includes(" ")) { nameCol = 1; break; }
+        }
+        const offset = nameCol === 0 ? -1 : 0;
 
-       if (headerRowIdx === -1) {
-         // Fallback a índices por defecto si no se encuentra cabecera
-         const basqueMonths = ["Ago","Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May"];
-         const cuotaMonths = ["Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May","Jun"];
-         for (let i = 0; i < rawData.length; i++) {
-           const row = rawData[i];
-           if (!row || row.length < 10) continue;
-           const name = row[1] ? row[1].toString().trim() : "";
-           if (!name || basqueMonthNames.includes(name) || name === "HILEROKOA" || name === "MULTAK" || name.includes("GUZTIRA")) continue;
-           const obj = { Nombre: name };
-           basqueMonths.forEach((m, idx) => { obj[`Multa ${m}`] = row[2+idx]||""; });
-           cuotaMonths.forEach((m, idx) => { obj[`Cuota ${m}`] = row[16+idx]||""; obj[`Balon ${m}`] = row[29+idx]||""; });
-           normalized.push(obj);
-         }
-         return normalized;
-       }
-
-       const sectionRow = headerRowIdx > 0 ? rawData[headerRowIdx - 1] : [];
-       const headerRow = rawData[headerRowIdx];
-       const colMap = {};
-       let lastSection = "";
-       headerRow.forEach((cell, idx) => {
-         const monthName = (cell||"").toString().trim();
-         const esMonth = basqueToES[monthName];
-         if (!esMonth) return;
-         for (let back = idx; back >= 0; back--) {
-           const sec = (sectionRow[back]||"").toString().trim();
-           if (sec === "MULTAK") { lastSection = "Multa"; break; }
-           if (sec === "HILEROKOA") { lastSection = "Cuota"; break; }
-           if (sec === "BALOIAK") { lastSection = "Balon"; break; }
-         }
-         colMap[idx] = `${lastSection} ${esMonth}`;
-       });
-
-       const ignoredNames = new Set([...basqueMonthNames, "HILEROKOA", "MULTAK", "BALOIAK", "BAKOITZAK GUZTIRA", "GUZTIRA", ""]);
-       for (let i = headerRowIdx + 1; i < rawData.length; i++) {
-         const row = rawData[i];
-         if (!row || row.length < 5) continue;
-         const name = row[1] ? row[1].toString().trim() : "";
-         if (!name || ignoredNames.has(name) || [...ignoredNames].some(n => name.includes(n))) continue;
-         const obj = { Nombre: name };
-         Object.entries(colMap).forEach(([idx, fieldName]) => {
-           obj[fieldName] = row[idx] !== undefined ? row[idx].toString().trim() : "";
-         });
-         normalized.push(obj);
-       }
-       return normalized;
+        for (let i = 0; i < rawData.length; i++) {
+          const row = rawData[i];
+          if (!row || row.length < 5) continue;
+          const name = (row[nameCol] || "").toString().trim();
+          if (!name || skipWords.has(name.toLowerCase())) continue;
+          const obj = { Nombre: name === "Donaciones" ? "DONACIONES" : name === "Gastos" ? "GASTOS" : name };
+          multaMonths.forEach((m, idx) => { const v = row[2+offset+idx]; obj[`Multa ${m}`] = v != null ? v.toString().trim() : ""; });
+          cuotaMonths.forEach((m, idx) => { const v = row[16+offset+idx]; obj[`Cuota ${m}`] = v != null ? v.toString().trim() : ""; });
+          balonMonths.forEach((m, idx) => { const v = row[29+offset+idx]; obj[`Balon ${m}`] = v != null ? v.toString().trim() : ""; });
+          normalized.push(obj);
+        }
+        return normalized;
      } else {
         // Es un CSV normal, usamos la primera fila como cabeceras
         const headers = rawData[0];
@@ -655,18 +628,21 @@ const App = () => {
       setData(parsed);
       setIsLoading(false);
     } else {
+      // Convertir cualquier URL de Sheets a URL de descarga CSV directa
       const csvUrl = toDirectCsvUrl(savedUrl);
-
+      
       Papa.parse(csvUrl, {
         download: true,
         header: false,
         skipEmptyLines: true,
         complete: (results) => {
           try {
+            // Detectar si Google devolvió un HTML en vez de un CSV (error de acceso)
             const firstCell = results.data && results.data[0] && results.data[0][0] ? results.data[0][0].toString() : "";
             if (firstCell.includes("<!DOCTYPE") || firstCell.includes("<html") || firstCell.includes("google.com/accounts")) {
-              throw new Error("Google Sheets devolvió HTML en vez de CSV. Asegúrate de que el documento es público: Compartir → Cualquier persona con el enlace → Lector.");
+              throw new Error("Google Sheets devolvió una página HTML en vez de CSV. Asegúrate de que el documento es público: Compartir → Cualquier persona con el enlace → Lector.");
             }
+            
             const normalized = normalizeSheetData(results.data);
             const parsed = processData(normalized);
             if (parsed.players.length === 0) {
@@ -698,6 +674,7 @@ const App = () => {
       "Introduce el enlace de tu Google Sheets.\n\n✅ REQUISITO: El documento debe ser PÚBLICO.\n   → Compartir → Cualquier persona con el enlace → Lector\n\nPega el enlace normal (lo convertiremos automáticamente a CSV):",
       currentUrl === "PEGAR_ENLACE_AQUI" ? "" : currentUrl
     );
+    
     if (newUrl !== null && newUrl.trim() !== "") {
       const urlToSave = toDirectCsvUrl(newUrl.trim());
       localStorage.setItem('google_sheets_url', urlToSave);
