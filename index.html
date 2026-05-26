@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Financiero Balonmano</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        dark: { DEFAULT: '#0f172a', paper: '#1e293b', card: '#334155' },
+                        brand: { primary: '#3b82f6', success: '#10b981', danger: '#ef4444', warning: '#f59e0b', purple: '#8b5cf6' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+// ============================================================================
+// CONFIGURACIÓN DE GOOGLE SHEETS
+// ============================================================================
+const GOOGLE_SHEETS_CSV_URL = "PEGAR_ENLACE_AQUI"; 
+// ============================================================================
+
+// --- ICONOS SVG ---
+const Icons = {
+  Money: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>,
+  Alert: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>,
+  User: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>,
+  Check: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>,
+  Trophy: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>,
+  Chart: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>,
+  Ball: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3c-2 2-3 5-3 9s1 7 3 9"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3c2 2 3 5 3 9s-1 7-3 9"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12h18"></path></svg>,
+  TrendingUp: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>,
+  TrendingDown: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"></path></svg>,
+  Gift: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"></path></svg>,
+  Settings: () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>,
+};
+// --- DATOS MOCK DE RESERVA CON GASTOS Y DONACIONES ---
+const MOCK_SHEET_DATA = [
+  { Nombre: "Aitor (Prueba)", Multas: "50", "Cuota Ago": "20", "Cuota Sep": "20", "Cuota Oct": "20", "Cuota Nov": "20", "Cuota Dic": "20", "Cuota Ene": "20", "Cuota Feb": "20", "Cuota Mar": "20", "Cuota Abr": "20", "Cuota May": "", "Balon Ago": "10", "Balon Sep": "10", "Balon Oct": "-", "Balon Nov": "10", "Balon Dic": "-", "Balon Ene": "10", "Balon Feb": "-", "Balon Mar": "-", "Balon Abr": "", "Balon May": "" },
+  { Nombre: "Jon (Prueba)", Multas: "120", "Cuota Ago": "20", "Cuota Sep": "20", "Cuota Oct": "20", "Cuota Nov": "20", "Cuota Dic": "20", "Cuota Ene": "-", "Cuota Feb": "-50", "Cuota Mar": "-", "Cuota Abr": "-", "Cuota May": "-", "Balon Ago": "-", "Balon Sep": "-", "Balon Oct": "-", "Balon Nov": "-", "Balon Dic": "-", "Balon Ene": "-", "Balon Feb": "-", "Balon Mar": "-", "Balon Abr": "-", "Balon May": "-" },
+  { Nombre: "Asier (Prueba)", Multas: "0", "Cuota Ago": "20", "Cuota Sep": "", "Cuota Oct": "", "Cuota Nov": "", "Cuota Dic": "", "Cuota Ene": "", "Cuota Feb": "", "Cuota Mar": "", "Cuota Abr": "", "Cuota May": "", "Balon Ago": "10", "Balon Sep": "10", "Balon Oct": "10", "Balon Nov": "10", "Balon Dic": "10", "Balon Ene": "10", "Balon Feb": "10", "Balon Mar": "10", "Balon Abr": "10", "Balon May": "10" },
+  { Nombre: "Iñigo (Prueba)", Multas: "20", "Cuota Ago": "20", "Cuota Sep": "20", "Cuota Oct": "20", "Cuota Nov": "20", "Cuota Dic": "20", "Cuota Ene": "20", "Cuota Feb": "20", "Cuota Mar": "20", "Cuota Abr": "20", "Cuota May": "20", "Balon Ago": "10", "Balon Sep": "10", "Balon Oct": "10", "Balon Nov": "10", "Balon Dic": "10", "Balon Ene": "10", "Balon Feb": "10", "Balon Mar": "10", "Balon Abr": "10", "Balon May": "10" },
+  { Nombre: "GASTOS", Multas: "", "Cuota Ago": "-20", "Cuota Sep": "-150", "Cuota Oct": "", "Cuota Nov": "", "Cuota Dic": "-80", "Cuota Ene": "", "Cuota Feb": "-45", "Cuota Mar": "", "Cuota Abr": "", "Cuota May": "" },
+  { Nombre: "DONACIONES", Multas: "200", "Cuota Ago": "", "Cuota Sep": "", "Cuota Oct": "50", "Cuota Nov": "", "Cuota Dic": "", "Cuota Ene": "100", "Cuota Feb": "", "Cuota Mar": "", "Cuota Abr": "", "Cuota May": "" }
+];
+
+const SEASON_MONTHS = ["Ago", "Sep", "Oct", "Nov", "Dic", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul"];
+
+function getRequiredMonths() {
+  const currentMonthIndex = new Date().getMonth(); 
+  let endSlice = currentMonthIndex >= 7 ? currentMonthIndex - 7 + 1 : currentMonthIndex + 5 + 1;
+  return SEASON_MONTHS.slice(0, endSlice);
+}
+
+function toDirectCsvUrl(url) {
+  if (!url || !url.includes("docs.google.com/spreadsheets/d/")) return url;
+  if (url.includes("export?format=csv") || url.includes("output=csv")) return url;
+  const idMatch = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (!idMatch) return url;
+  const docId = idMatch[1];
+  const gidMatch = url.match(/[#&?]gid=([0-9]+)/);
+  let csvUrl = `https://docs.google.com/spreadsheets/d/${docId}/export?format=csv`;
+  if (gidMatch) csvUrl += `&gid=${gidMatch[1]}`;
+  return csvUrl;
+}
+
+function normalizeSheetData(rawData) {
+  if (!rawData || rawData.length === 0) return [];
+  
+  // Si ya es un array de objetos (como MOCK_SHEET_DATA), lo devolvemos tal cual
+  if (!Array.isArray(rawData[0]) && typeof rawData[0] === 'object') {
+    return rawData;
+  }
+  
+  // Si es un array de arrays (generado por Papa.parse con header: false)
+  if (Array.isArray(rawData[0])) {
+     // Detectar si es el Excel complejo en euskera analizando las primeras filas
+     const isBasqueSheet = rawData.length > 2 && Array.isArray(rawData[1]) && rawData[1].includes("HILEROKOA");
+     
+     if (isBasqueSheet) {
+       const normalized = [];
+       const basqueToES = {
+         "Abuztua": "Ago", "Iraila": "Sep", "Urria": "Oct", "Azaroa": "Nov",
+         "Abendua": "Dic", "Urtarrila": "Ene", "Otsaila": "Feb",
+         "Martxoa": "Mar", "Apirila": "Abr", "Maiatza": "May", "Ekaina": "Jun"
+       };
+       const basqueMonthNames = Object.keys(basqueToES);
+
+       let headerRowIdx = -1;
+       for (let i = 0; i < Math.min(rawData.length, 8); i++) {
+         if (rawData[i] && rawData[i].some(cell => basqueMonthNames.includes((cell||"").toString().trim()))) {
+           headerRowIdx = i;
+           break;
+         }
+       }
+
+       if (headerRowIdx === -1) {
+         // Fallback a índices por defecto si no se encuentra cabecera
+         const basqueMonths = ["Ago","Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May"];
+         const cuotaMonths = ["Sep","Oct","Nov","Dic","Ene","Feb","Mar","Abr","May","Jun"];
+         for (let i = 0; i < rawData.length; i++) {
+           const row = rawData[i];
+           if (!row || row.length < 10) continue;
+           const name = row[1] ? row[1].toString().trim() : "";
+           if (!name || basqueMonthNames.includes(name) || name === "HILEROKOA" || name === "MULTAK" || name.includes("GUZTIRA")) continue;
+           const obj = { Nombre: name };
+           basqueMonths.forEach((m, idx) => { obj[`Multa ${m}`] = row[2+idx]||""; });
+           cuotaMonths.forEach((m, idx) => { obj[`Cuota ${m}`] = row[16+idx]||""; obj[`Balon ${m}`] = row[29+idx]||""; });
+           normalized.push(obj);
+         }
+         return normalized;
+       }
+
+       const sectionRow = headerRowIdx > 0 ? rawData[headerRowIdx - 1] : [];
+       const headerRow = rawData[headerRowIdx];
+       const colMap = {};
+       let lastSection = "";
+       headerRow.forEach((cell, idx) => {
+         const monthName = (cell||"").toString().trim();
+         const esMonth = basqueToES[monthName];
+         if (!esMonth) return;
+         for (let back = idx; back >= 0; back--) {
+           const sec = (sectionRow[back]||"").toString().trim();
+           if (sec === "MULTAK") { lastSection = "Multa"; break; }
+           if (sec === "HILEROKOA") { lastSection = "Cuota"; break; }
+           if (sec === "BALOIAK") { lastSection = "Balon"; break; }
+         }
+         colMap[idx] = `${lastSection} ${esMonth}`;
+       });
+
+       const ignoredNames = new Set([...basqueMonthNames, "HILEROKOA", "MULTAK", "BALOIAK", "BAKOITZAK GUZTIRA", "GUZTIRA", ""]);
+       for (let i = headerRowIdx + 1; i < rawData.length; i++) {
+         const row = rawData[i];
+         if (!row || row.length < 5) continue;
+         const name = row[1] ? row[1].toString().trim() : "";
+         if (!name || ignoredNames.has(name) || [...ignoredNames].some(n => name.includes(n))) continue;
+         const obj = { Nombre: name };
+         Object.entries(colMap).forEach(([idx, fieldName]) => {
+           obj[fieldName] = row[idx] !== undefined ? row[idx].toString().trim() : "";
+         });
+         normalized.push(obj);
+       }
+       return normalized;
+     } else {
+        // Es un CSV normal, usamos la primera fila como cabeceras
+        const headers = rawData[0];
+        const normalized = [];
+        for (let i = 1; i < rawData.length; i++) {
+           const obj = {};
+           headers.forEach((h, idx) => { obj[h] = rawData[i][idx]; });
+           normalized.push(obj);
+        }
+        return normalized;
+     }
+  }
+  return rawData;
+}
+
+function processData(rawData) {
+  const requiredMonths = getRequiredMonths();
+  
+  let totalIngresos = 0;
+  let totalGastos = 0;
+  let totalDonaciones = 0;
+  
+  // Initialize monthly stats
+  let monthlyStats = {};
+  SEASON_MONTHS.forEach(m => { monthlyStats[m] = { ingresos: 0, gastos: 0 }; });
+
+  let playersData = [];
+  let adelantosData = [];
+
+  let stats = {
+    totalRows: rawData.length,
+    validRows: 0,
+    ignoredRows: 0,
+    logs: []
+  };
+
+  rawData.forEach((row, index) => {
+    try {
+      if (!row || typeof row !== 'object') {
+        throw new Error("Formato de fila inválido.");
+      }
+
+      const nombreStr = row.Nombre ? row.Nombre.toString().trim() : "";
+      
+      // Validar fila completamente vacía o sin nombre
+      if (!nombreStr) {
+        const hasOtherData = Object.keys(row).some(k => k !== "Nombre" && row[k] && row[k].toString().trim() !== "" && row[k].toString().trim() !== "-");
+        if (hasOtherData) throw new Error("Fila con datos pero sin nombre especificado en la columna 'Nombre'.");
+        return; // Ignorar silenciosamente si está totalmente vacía
+      }
+
+      const isGastoRow = nombreStr.toUpperCase() === "GASTOS";
+      const isDonacionRow = nombreStr.toUpperCase() === "DONACIONES";
+      const isPlayer = !isGastoRow && !isDonacionRow;
+
+      let playerAdelantado = 0;
+      let playerIngresado = 0;
+      let cuotasDeuda = [];
+      let balonesDeuda = [];
+
+      // Recorrer todas las celdas para balances financieros
+      Object.keys(row).forEach(key => {
+        if (key === "Nombre") return;
+        const valStr = row[key] ? row[key].toString().trim() : "";
+        if (valStr === "-" || valStr === "") return;
+
+        const valNum = parseFloat(valStr);
+        // Sanitización robusta
+        if (isNaN(valNum)) {
+          throw new Error(`El valor '${valStr}' en la columna '${key}' no es un número válido.`);
+        }
+
+        if (valNum !== 0) {
+          const isNegative = valNum < 0;
+          const isPositive = valNum > 0;
+          const absVal = Math.abs(valNum);
+
+          // Sumas globales
+          if (isDonacionRow && isPositive) {
+             totalDonaciones += valNum;
+             totalIngresos += valNum;
+          } else if (isGastoRow && isNegative) {
+             totalGastos += absVal;
+          } else if (isPlayer) {
+             if (isPositive) {
+               totalIngresos += valNum;
+               playerIngresado += valNum;
+             }
+             if (isNegative) {
+               totalGastos += absVal;
+               playerAdelantado += absVal;
+             }
+          }
+
+          // Sumas mensuales
+          const monthMatch = SEASON_MONTHS.find(m => key.includes(m));
+          if (monthMatch) {
+             if (isPositive) monthlyStats[monthMatch].ingresos += valNum;
+             if (isNegative) monthlyStats[monthMatch].gastos += absVal;
+          }
+        }
+      });
+
+      // Lógica estricta de deudas solo para jugadores
+      if (isPlayer) {
+        requiredMonths.forEach(m => {
+          const valCuota = row[`Cuota ${m}`] ? row[`Cuota ${m}`].toString().trim() : "";
+          if (valCuota === "") cuotasDeuda.push(m);
+
+          const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
+          if (valBalon === "") balonesDeuda.push(m);
+        });
+
+        if (playerAdelantado > 0) {
+          adelantosData.push({ nombre: nombreStr, amount: playerAdelantado });
+        }
+
+        playersData.push({
+          nombre: nombreStr,
+          totalIngresado: playerIngresado,
+          totalAdelantado: playerAdelantado,
+          cuotasDeuda,
+          balonesDeuda
+        });
+      }
+
+      stats.validRows++;
+    } catch (e) {
+      stats.ignoredRows++;
+      stats.logs.push(`Fila ${index + 2} (${row.Nombre || 'Sin Nombre'}): ${e.message}`);
+    }
+  });
+
+  // Filtrar meses futuros para la gráfica
+  const filteredMonthlyStats = {};
+  requiredMonths.forEach(m => {
+    filteredMonthlyStats[m] = monthlyStats[m];
+  });
+
+  return {
+    players: playersData,
+    finances: {
+      balanceNeto: totalIngresos - totalGastos,
+      totalIngresos,
+      totalGastos,
+      totalDonaciones,
+      monthlyStats: filteredMonthlyStats,
+      adelantos: adelantosData.sort((a, b) => b.amount - a.amount)
+    },
+    stats
+  };
+}
+
+const ImportStatusBanner = ({ stats }) => {
+  if (!stats) return null;
+  const hasErrors = stats.ignoredRows > 0;
+  
+  return (
+    <div className={`mb-6 p-4 rounded-xl border ${hasErrors ? 'bg-brand-warning bg-opacity-10 border-brand-warning' : 'bg-brand-success bg-opacity-10 border-brand-success'}`}>
+       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+         <div>
+           <h4 className={`font-bold flex items-center gap-2 ${hasErrors ? 'text-brand-warning' : 'text-brand-success'}`}>
+             {hasErrors ? <Icons.Alert /> : <Icons.Check />} 
+             Sincronización {hasErrors ? 'Parcial' : 'Completa'}
+           </h4>
+           <p className="text-sm text-gray-300 mt-1">
+             <span className="font-bold">{stats.validRows}</span> registros importados correctamente. 
+             {hasErrors && <span className="font-bold text-brand-warning ml-1">({stats.ignoredRows} filas ignoradas)</span>}
+           </p>
+         </div>
+       </div>
+       
+       {hasErrors && (
+         <div className="mt-4 bg-dark-card p-3 rounded-lg text-xs font-mono text-gray-400 max-h-32 overflow-y-auto">
+           <p className="font-bold mb-2 text-gray-300">Logs de errores:</p>
+           <ul className="space-y-1">
+             {stats.logs.map((log, i) => <li key={i}>• {log}</li>)}
+           </ul>
+         </div>
+       )}
+    </div>
+  );
+};
+
+// --- COMPONENTES UI ---
+const Card = ({ children, className = "" }) => (
+  <div className={`glass-card rounded-2xl p-6 ${className}`}>
+    {children}
+  </div>
+);
+
+const StatCard = ({ title, value, subtitle, icon, colorClass }) => (
+  <Card className="flex items-center space-x-4">
+    <div className={`p-4 rounded-xl ${colorClass} bg-opacity-20 backdrop-blur-md`}>
+      <div className={colorClass.replace('bg-', 'text-')}>{icon}</div>
+    </div>
+    <div>
+      <p className="text-gray-400 text-sm font-medium">{title}</p>
+      <h3 className="text-3xl font-bold text-white tracking-tight">{value}</h3>
+      {subtitle && <p className={`text-xs mt-1 ${colorClass.replace('bg-', 'text-')}`}>{subtitle}</p>}
+    </div>
+  </Card>
+);
+
+const DebtBadge = ({ count, type }) => {
+  if (count === 0) return <span className="px-2 py-1 bg-brand-success bg-opacity-20 text-brand-success rounded text-xs font-bold">Al día</span>;
+  return (
+    <span className="px-2 py-1 bg-brand-danger bg-opacity-20 text-brand-danger rounded text-xs font-bold animate-pulse">
+      Debe {count} {count === 1 ? type : type + 's'}
+    </span>
+  );
+};
+
+// --- GRÁFICO FINANCIERO ---
+const FinanceChart = ({ data }) => {
+  const chartRef = useRef(null);
+  const chartInstance = useRef(null);
+
+  useEffect(() => {
+    if (chartRef.current) {
+      if (chartInstance.current) chartInstance.current.destroy();
+      
+      const labels = Object.keys(data);
+      const ingresos = labels.map(l => data[l].ingresos);
+      const gastos = labels.map(l => data[l].gastos);
+
+      chartInstance.current = new Chart(chartRef.current, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Ingresos', data: ingresos, backgroundColor: '#10b981', borderRadius: 4 },
+            { label: 'Gastos', data: gastos, backgroundColor: '#ef4444', borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            y: { beginAtZero: true, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+          },
+          plugins: {
+            legend: { labels: { color: '#f8fafc' } },
+            tooltip: { backgroundColor: '#1e293b', titleColor: '#fff', bodyColor: '#fff', borderColor: '#334155', borderWidth: 1 }
+          }
+        }
+      });
+    }
+    return () => { if (chartInstance.current) chartInstance.current.destroy(); };
+  }, [data]);
+
+  return <canvas ref={chartRef}></canvas>;
+};
+
+// --- VISTAS ---
+const Finanzas = ({ finances }) => {
+  const { balanceNeto, totalIngresos, totalGastos, totalDonaciones, monthlyStats, adelantos } = finances;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="Balance General" value={`${balanceNeto} €`} subtitle="Dinero disponible" icon={<Icons.Money />} colorClass={balanceNeto >= 0 ? "bg-brand-success" : "bg-brand-danger"} />
+        <StatCard title="Ingresos Totales" value={`${totalIngresos} €`} subtitle="Multas, Cuotas, Balones..." icon={<Icons.TrendingUp />} colorClass="bg-brand-primary" />
+        <StatCard title="Gastos Totales" value={`${totalGastos} €`} subtitle="Pagos de la banca" icon={<Icons.TrendingDown />} colorClass="bg-brand-danger" />
+        <StatCard title="Donaciones" value={`${totalDonaciones} €`} subtitle="Aportes externos" icon={<Icons.Gift />} colorClass="bg-brand-purple" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <Icons.Chart /> Evolución Mensual
+          </h3>
+          <div className="h-64 relative w-full">
+            <FinanceChart data={monthlyStats} />
+          </div>
+        </Card>
+
+        <Card className="border-t-4 border-t-brand-warning">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-brand-warning">
+            <Icons.Trophy /> Adelantos (El Banco)
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">Jugadores que han puesto dinero de su bolsillo para el equipo (gastos).</p>
+          <div className="space-y-4">
+            {adelantos.length === 0 ? (
+              <p className="text-gray-500 italic text-center">Nadie ha adelantado dinero.</p>
+            ) : (
+              adelantos.map((p, i) => (
+                <div key={p.nombre} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg border border-brand-warning border-opacity-30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-full bg-brand-warning bg-opacity-20 flex items-center justify-center text-brand-warning text-xs font-bold">{i+1}</div>
+                    <span className="font-medium text-brand-warning">{p.nombre}</span>
+                  </div>
+                  <span className="font-bold text-brand-warning">+{p.amount} €</span>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const Dashboard = ({ players }) => {
+  const totalMorososCuotas = players.filter(p => p.cuotasDeuda.length > 0).length;
+  const totalMorososBalones = players.filter(p => p.balonesDeuda.length > 0).length;
+  const cuotasAlDiaPorc = Math.round(((players.length - totalMorososCuotas) / players.length) * 100) || 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <StatCard title="Morosos Cuotas" value={totalMorososCuotas} subtitle="Jugadores con deuda" icon={<Icons.Alert />} colorClass="bg-brand-danger" />
+        <StatCard title="Morosos Balones" value={totalMorososBalones} subtitle="Jugadores con deuda" icon={<Icons.Ball />} colorClass="bg-brand-warning" />
+        <StatCard title="Plantilla al Día" value={`${cuotasAlDiaPorc}%`} subtitle="En cuotas mensuales" icon={<Icons.Check />} colorClass="bg-brand-success" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="border-t-4 border-t-brand-primary">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-brand-primary">
+            <Icons.Trophy /> Top Aportadores
+          </h3>
+          <p className="text-xs text-gray-400 mb-4">Jugadores que más dinero puro han ingresado a la caja.</p>
+          <div className="space-y-4">
+            {[...players].sort((a, b) => b.totalIngresado - a.totalIngresado).slice(0, 5).map((p, i) => (
+              <div key={p.nombre} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-black ${i===0 ? 'bg-yellow-400' : i===1 ? 'bg-gray-300' : i===2 ? 'bg-amber-600' : 'bg-brand-primary bg-opacity-50 text-white'}`}>
+                    {i+1}
+                  </div>
+                  <span className="font-medium">{p.nombre}</span>
+                </div>
+                <span className="font-bold text-lg">{p.totalIngresado} €</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="border-t-4 border-t-brand-danger">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-brand-danger">
+            <Icons.Alert /> El Drama (Deuda Acumulada)
+          </h3>
+          <div className="space-y-4">
+            {[...players].filter(p => p.cuotasDeuda.length > 0 || p.balonesDeuda.length > 0)
+              .sort((a, b) => (b.cuotasDeuda.length + b.balonesDeuda.length) - (a.cuotasDeuda.length + a.balonesDeuda.length))
+              .slice(0, 5)
+              .map((p, i) => (
+              <div key={p.nombre} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg border border-brand-danger border-opacity-30">
+                <span className="font-medium">{p.nombre}</span>
+                <div className="flex flex-col items-end gap-1 text-xs">
+                  {p.cuotasDeuda.length > 0 && <span className="text-brand-danger font-bold">{p.cuotasDeuda.length} Cuotas pendientes</span>}
+                  {p.balonesDeuda.length > 0 && <span className="text-brand-warning font-bold">{p.balonesDeuda.length} Balones pendientes</span>}
+                </div>
+              </div>
+            ))}
+            {players.filter(p => p.cuotasDeuda.length > 0 || p.balonesDeuda.length > 0).length === 0 && (
+              <p className="text-gray-400 text-center py-4">¡Milagro! Nadie debe nada.</p>
+            )}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const SectionDebt = ({ players, type, title, icon, dataKey }) => {
+  const alDiaCount = players.filter(p => p[dataKey].length === 0).length;
+  const percentage = Math.round((alDiaCount / players.length) * 100) || 0;
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold flex items-center gap-2">{icon} Estado de {title}</h2>
+      
+      <Card>
+        <div className="mb-8">
+          <div className="flex justify-between items-end mb-2">
+            <div>
+              <p className="text-gray-400">Progreso del Equipo</p>
+              <h3 className="text-3xl font-bold text-brand-success">{percentage}%</h3>
+            </div>
+            <p className="text-gray-400">{alDiaCount} de {players.length} jugadores al día</p>
+          </div>
+          <div className="w-full bg-dark rounded-full h-4 overflow-hidden">
+            <div className="bg-brand-success h-4 transition-all duration-1000 ease-out" style={{ width: `${percentage}%` }}></div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <h4 className="text-lg font-semibold text-brand-success mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-brand-success"></span> Al Día
+            </h4>
+            <div className="space-y-2">
+              {players.filter(p => p[dataKey].length === 0).map(p => (
+                <div key={p.nombre} className="p-3 bg-dark-card rounded-lg flex justify-between items-center border border-brand-success border-opacity-30">
+                  <span>{p.nombre}</span>
+                  <Icons.Check className="text-brand-success w-5 h-5" />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <h4 className="text-lg font-semibold text-brand-danger mb-4 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-brand-danger animate-pulse"></span> Morosos
+            </h4>
+            <div className="space-y-2">
+              {players.filter(p => p[dataKey].length > 0)
+                .sort((a, b) => b[dataKey].length - a[dataKey].length)
+                .map(p => (
+                <div key={p.nombre} className="p-3 bg-dark-card rounded-lg flex justify-between items-center border border-brand-danger border-opacity-30">
+                  <span>{p.nombre}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-brand-danger bg-brand-danger bg-opacity-20 px-2 py-1 rounded">
+                      Debe {p[dataKey].length} meses
+                    </span>
+                    <Icons.Alert className="text-brand-danger w-5 h-5" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+const PlayersList = ({ players }) => {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold flex items-center gap-2"><Icons.User /> Plantilla al Detalle</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {players.map(p => (
+          <Card key={p.nombre} className="hover:border-brand-primary transition-colors relative overflow-hidden">
+            {p.totalAdelantado > 0 && (
+               <div className="absolute top-0 right-0 bg-brand-warning text-black text-[10px] font-bold px-3 py-1 rounded-bl-lg flex items-center gap-1 shadow-lg">
+                 ⭐ Adelantó {p.totalAdelantado}€
+               </div>
+            )}
+            
+            <div className="flex justify-between items-start mb-4 mt-2">
+              <h3 className="text-xl font-bold">{p.nombre}</h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-dark rounded-lg p-2 text-center border border-brand-primary border-opacity-20">
+                <p className="text-[10px] text-gray-400 uppercase">Ingresado</p>
+                <p className="text-lg font-bold text-brand-primary">{p.totalIngresado} €</p>
+              </div>
+              <div className="bg-dark rounded-lg p-2 text-center border border-brand-warning border-opacity-20">
+                <p className="text-[10px] text-gray-400 uppercase">Adelantos</p>
+                <p className="text-lg font-bold text-brand-warning">{p.totalAdelantado} €</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-dark rounded-lg p-3 flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Cuotas Mensuales</span>
+                <DebtBadge count={p.cuotasDeuda.length} type="cuota" />
+              </div>
+              {p.cuotasDeuda.length > 0 && <div className="text-xs text-brand-danger px-2">Meses: {p.cuotasDeuda.join(', ')}</div>}
+
+              <div className="bg-dark rounded-lg p-3 flex justify-between items-center">
+                <span className="text-gray-400 text-sm">Balones</span>
+                <DebtBadge count={p.balonesDeuda.length} type="balón" />
+              </div>
+              {p.balonesDeuda.length > 0 && <div className="text-xs text-brand-warning px-2">Meses: {p.balonesDeuda.join(', ')}</div>}
+            </div>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- APP PRINCIPAL ---
+const App = () => {
+  const [activeTab, setActiveTab] = useState('finanzas');
+  const [data, setData] = useState({ players: [], finances: null });
+  const [currentMonthName, setCurrentMonthName] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    setCurrentMonthName(monthNames[new Date().getMonth()]);
+
+    const savedUrl = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
+
+    if (savedUrl === "PEGAR_ENLACE_AQUI") {
+      const parsed = processData(MOCK_SHEET_DATA);
+      setData(parsed);
+      setIsLoading(false);
+    } else {
+      const csvUrl = toDirectCsvUrl(savedUrl);
+
+      Papa.parse(csvUrl, {
+        download: true,
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            const firstCell = results.data && results.data[0] && results.data[0][0] ? results.data[0][0].toString() : "";
+            if (firstCell.includes("<!DOCTYPE") || firstCell.includes("<html") || firstCell.includes("google.com/accounts")) {
+              throw new Error("Google Sheets devolvió HTML en vez de CSV. Asegúrate de que el documento es público: Compartir → Cualquier persona con el enlace → Lector.");
+            }
+            const normalized = normalizeSheetData(results.data);
+            const parsed = processData(normalized);
+            if (parsed.players.length === 0) {
+              throw new Error("No se encontraron jugadores en el CSV. Revisa el formato del sheet.");
+            }
+            setData(parsed);
+          } catch (e) {
+            console.error("Error al procesar los datos:", e);
+            alert("Error al cargar los datos:\n\n" + e.message + "\n\nSe mostrarán datos de ejemplo.");
+            localStorage.removeItem('google_sheets_url');
+            setData(processData(MOCK_SHEET_DATA));
+          }
+          setIsLoading(false);
+        },
+        error: (error) => {
+          console.error("Error de red leyendo Google Sheets:", error);
+          alert("No se pudo conectar con Google Sheets.\n\nComprueba:\n1. El enlace es correcto\n2. El documento es público (Compartir → Cualquier persona con el enlace → Lector)\n\nSe mostrarán datos de ejemplo.");
+          localStorage.removeItem('google_sheets_url');
+          setData(processData(MOCK_SHEET_DATA));
+          setIsLoading(false);
+        }
+      });
+    }
+  }, []);
+
+  const handleConfigUrl = () => {
+    const currentUrl = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
+    const newUrl = prompt(
+      "Introduce el enlace de tu Google Sheets.\n\n✅ REQUISITO: El documento debe ser PÚBLICO.\n   → Compartir → Cualquier persona con el enlace → Lector\n\nPega el enlace normal (lo convertiremos automáticamente a CSV):",
+      currentUrl === "PEGAR_ENLACE_AQUI" ? "" : currentUrl
+    );
+    if (newUrl !== null && newUrl.trim() !== "") {
+      const urlToSave = toDirectCsvUrl(newUrl.trim());
+      localStorage.setItem('google_sheets_url', urlToSave);
+      window.location.reload();
+    }
+  };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-dark"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>;
+  }
+
+  const renderContent = () => {
+    switch(activeTab) {
+      case 'finanzas': return <Finanzas finances={data.finances} />;
+      case 'dashboard': return <Dashboard players={data.players} />;
+      case 'cuotas': return <SectionDebt players={data.players} type="Cuota" title="Cuotas" icon={<Icons.Money />} dataKey="cuotasDeuda" />;
+      case 'balones': return <SectionDebt players={data.players} type="Balón" title="Balones" icon={<Icons.Ball />} dataKey="balonesDeuda" />;
+      case 'players': return <PlayersList players={data.players} />;
+      default: return <Finanzas finances={data.finances} />;
+    }
+  };
+
+  const tabs = [
+    { id: 'finanzas', label: 'Finanzas', icon: <Icons.Money /> },
+    { id: 'dashboard', label: 'Jugadores', icon: <Icons.User /> },
+    { id: 'cuotas', label: 'Cuotas', icon: <Icons.Money /> },
+    { id: 'balones', label: 'Balones', icon: <Icons.Ball /> },
+    { id: 'players', label: 'Plantilla', icon: <Icons.User /> },
+  ];
+
+  return (
+    <div className="min-h-screen text-slate-200">
+      <header className="bg-dark-paper border-b border-slate-700 sticky top-0 z-10 backdrop-blur-md bg-opacity-80">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-primary to-brand-success flex items-center justify-center shadow-lg hidden sm:flex">
+                <Icons.TrendingUp className="text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 leading-tight">
+                  Multas <span className="text-brand-primary">Wall Street</span>
+                </h1>
+                <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest mt-0.5">Balance Neto: {data.finances ? data.finances.balanceNeto : 0}€</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex space-x-1">
+                {tabs.map(tab => (
+                  <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors duration-200 ${activeTab === tab.id ? 'bg-dark text-brand-primary font-medium shadow-inner' : 'text-gray-400 hover:text-white hover:bg-dark-card'}`}>
+                    <div className="w-4 h-4">{tab.icon}</div>{tab.label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={handleConfigUrl} className="bg-dark-card border border-slate-600 hover:border-brand-primary hover:text-brand-primary text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm text-sm font-medium">
+                <Icons.Settings />
+                <span className="hidden sm:inline">Configurar Google Sheets</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
+        {data.stats && <ImportStatusBanner stats={data.stats} />}
+        {data.players.length > 0 ? renderContent() : (
+          <div className="flex flex-col items-center justify-center h-64 bg-dark-card rounded-2xl border border-dashed border-slate-600 p-8 text-center mt-10">
+             <div className="text-brand-danger mb-4"><Icons.Alert /></div>
+             <h2 className="text-xl font-bold mb-2">No se han podido cargar los datos</h2>
+             <p className="text-gray-400 mb-6 max-w-md">El enlace configurado no es válido o el documento no es público. Vuelve a configurar el enlace de Google Sheets.</p>
+             <button onClick={handleConfigUrl} className="bg-brand-primary text-white px-6 py-3 rounded-lg font-bold shadow-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
+               <Icons.Settings /> Configurar Enlace
+             </button>
+          </div>
+        )}
+      </main>
+
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-dark-paper border-t border-slate-700 pb-safe z-20 overflow-x-auto scrollbar-hide">
+        <div className="flex items-center h-16 px-2 min-w-max space-x-4">
+          {tabs.map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center w-16 h-full space-y-1 ${activeTab === tab.id ? 'text-brand-primary' : 'text-gray-500'}`}>
+              <div className="w-6 h-6">{tab.icon}</div><span className="text-[10px] font-medium">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    </div>
+  );
+};
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+    </script>
+</head>
+<body class="bg-dark min-h-screen">
+    <div id="root"></div>
+</body>
+</html>

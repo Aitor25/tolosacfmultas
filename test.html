@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.6/prop-types.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+      console.log("React:", !!window.React);
+      console.log("ReactDOM:", !!window.ReactDOM);
+      console.log("Babel:", !!window.Babel);
+      console.log("Recharts:", !!window.Recharts);
+      try {
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(window.React.createElement('h1', null, 'Vanilla React Works'));
+      } catch (e) {
+        console.error("Error rendering vanilla react:", e);
+      }
+    </script>
+    <script type="text/babel">
+      console.log("Babel script started");
+      try {
+        const App = () => <h2>Babel JSX Works</h2>;
+        const root2 = ReactDOM.createRoot(document.getElementById('root'));
+        root2.render(<App />);
+      } catch (e) {
+        console.error("Error rendering Babel react:", e);
+      }
+    </script>
+</body>
+</html>
