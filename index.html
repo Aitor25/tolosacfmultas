@@ -240,12 +240,16 @@ function processData(rawData) {
 
       // Lógica estricta de deudas solo para jugadores
       if (isPlayer) {
+        // Meses en los que NO hay balón (no se cobra, no se marca como moroso)
+        const sinBalon = new Set(["Ago"]);
         requiredMonths.forEach(m => {
           const valCuota = row[`Cuota ${m}`] ? row[`Cuota ${m}`].toString().trim() : "";
           if (valCuota === "") cuotasDeuda.push(m);
 
-          const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
-          if (valBalon === "") balonesDeuda.push(m);
+          if (!sinBalon.has(m)) {
+            const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
+            if (valBalon === "") balonesDeuda.push(m);
+          }
         });
 
         if (playerAdelantado > 0) {
@@ -291,6 +295,14 @@ function processData(rawData) {
 const ImportStatusBanner = ({ stats }) => {
   if (!stats) return null;
   const hasErrors = stats.ignoredRows > 0;
+  const [visible, setVisible] = React.useState(true);
+  React.useEffect(() => {
+    if (!hasErrors) {
+      const t = setTimeout(() => setVisible(false), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [hasErrors]);
+  if (!visible) return null;
   
   return (
     <div className={`mb-6 p-4 rounded-xl border ${hasErrors ? 'bg-brand-warning bg-opacity-10 border-brand-warning' : 'bg-brand-success bg-opacity-10 border-brand-success'}`}>
