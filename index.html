@@ -996,9 +996,12 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
   }
 
   // Reprocesar datos cuando cambia el mes de prueba
-  const displayData = React.useMemo(() => {
-    if (!data._rawNormalized) return data;
-    return processData(data._rawNormalized, testMonth !== null ? testMonth : undefined);
+  const [displayData, setDisplayData] = useState(data);
+  useEffect(() => {
+    if (!data._rawNormalized) { setDisplayData(data); return; }
+    const reprocessed = processData(data._rawNormalized, testMonth !== null ? testMonth : undefined);
+    reprocessed._rawNormalized = data._rawNormalized;
+    setDisplayData(reprocessed);
   }, [data, testMonth]);
 
   const renderContent = () => {
