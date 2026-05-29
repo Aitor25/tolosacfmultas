@@ -32,10 +32,28 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Firebase Compat SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase Init -->
+    <script>
+    (function() {
+        const firebaseConfig = {
+            apiKey: "AIzaSyBJrtOX12152cdGiVGKA_EgulopdFdChVc",
+            authDomain: "estadisticaspartidos.firebaseapp.com",
+            projectId: "estadisticaspartidos",
+            storageBucket: "estadisticaspartidos.firebasestorage.app",
+            messagingSenderId: "235845579007",
+            appId: "1:235845579007:web:c181df70c82915b8c61cca"
+        };
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        window._fbAuth = firebase.auth();
+        window._fbDb = firebase.firestore();
+    })();
+    </script>
     <script type="text/babel">
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -626,585 +644,292 @@ const PlayersList = ({ players }) => {
   );
 };
 
+// --- APP PRINCIPAL ---
+
 // ============================================================================
-// CONFIGURACIÓN DE FIREBASE (POR DEFECTO EN BLANCO)
+// AUTH SYSTEM
 // ============================================================================
-const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyA9h6ZOs25zAf57A8AeENMZQj3UFa7Tg2Q",
-  authDomain: "tolosacfmultas.firebaseapp.com",
-  projectId: "tolosacfmultas",
-  storageBucket: "tolosacfmultas.firebasestorage.app",
-  messagingSenderId: "766450236794",
-  appId: "1:766450236794:web:419223c48218c807ad2ac3"
-};
+const ADMIN_EMAIL = 'agarciah10@gmail.com';
 
-function getFirebaseConfig() {
-  const isPlaceholder = (val) => !val || val.includes("REEMPLAZAR_CON") || val.trim() === "";
-  const config = DEFAULT_FIREBASE_CONFIG;
-  if (!isPlaceholder(config.apiKey) && !isPlaceholder(config.projectId)) {
-    return config;
-  }
-  try {
-    const saved = localStorage.getItem('firebase_config');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!isPlaceholder(parsed.apiKey) && !isPlaceholder(parsed.projectId)) {
-        return parsed;
-      }
-    }
-  } catch (e) {
-    console.error("Error al leer firebase_config de localStorage:", e);
-  }
-  return null;
-}
+const LoginScreen = () => {
+  const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
 
-function parseFirebaseSnippet(snippet) {
-  try {
-    const extractField = (field) => {
-      const regex = new RegExp(`['"]?${field}['"]?\\s*:\\s*['"]([^'"]+)['"]`);
-      const match = snippet.match(regex);
-      return match ? match[1] : "";
-    };
-    return {
-      apiKey: extractField("apiKey"),
-      authDomain: extractField("authDomain"),
-      projectId: extractField("projectId"),
-      storageBucket: extractField("storageBucket"),
-      messagingSenderId: extractField("messagingSenderId"),
-      appId: extractField("appId")
-    };
-  } catch (e) {
-    return null;
-  }
-}
-
-// Inicialización de Variables de Firebase
-let firebaseApp = null;
-let firebaseAuth = null;
-let firebaseDb = null;
-
-const initialConfig = getFirebaseConfig();
-if (initialConfig) {
-  try {
-    if (!firebase.apps.length) {
-      firebaseApp = firebase.initializeApp(initialConfig);
-    } else {
-      firebaseApp = firebase.app();
-    }
-    firebaseAuth = firebase.auth();
-    firebaseDb = firebase.firestore();
-  } catch (e) {
-    console.error("Error al inicializar Firebase:", e);
-  }
-}
-
-// --- ASISTENTE DE CONFIGURACIÓN DE FIREBASE ---
-const FirebaseSetupWizard = ({ onConfigSaved }) => {
-  const [apiKey, setApiKey] = useState("");
-  const [authDomain, setAuthDomain] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [storageBucket, setStorageBucket] = useState("");
-  const [messagingSenderId, setMessagingSenderId] = useState("");
-  const [appId, setAppId] = useState("");
-  const [pasteSnippet, setPasteSnippet] = useState("");
-  const [error, setError] = useState("");
-
-  const handlePasteChange = (e) => {
-    const val = e.target.value;
-    setPasteSnippet(val);
-    if (val.trim()) {
-      const parsed = parseFirebaseSnippet(val);
-      if (parsed && parsed.apiKey && parsed.projectId) {
-        setApiKey(parsed.apiKey);
-        setAuthDomain(parsed.authDomain);
-        setProjectId(parsed.projectId);
-        setStorageBucket(parsed.storageBucket);
-        setMessagingSenderId(parsed.messagingSenderId);
-        setAppId(parsed.appId);
-        setError("");
-      } else {
-        setError("No se pudo detectar un formato config válido en el texto pegado.");
-      }
+  const translateError = (code) => {
+    switch (code) {
+      case 'auth/invalid-email': return 'El correo no es válido.';
+      case 'auth/user-not-found': return 'No existe ninguna cuenta con este correo.';
+      case 'auth/wrong-password': return 'Contraseña incorrecta.';
+      case 'auth/invalid-login-credentials': return 'Credenciales incorrectas. ¿Ya te has registrado?';
+      case 'auth/email-already-in-use': return 'Este correo ya está registrado.';
+      case 'auth/weak-password': return 'La contraseña debe tener al menos 6 caracteres.';
+      default: return 'Error inesperado. Inténtalo de nuevo.';
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!apiKey || !projectId) {
-      setError("La API Key y el Project ID son obligatorios.");
-      return;
-    }
-    const newConfig = { apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId };
-    localStorage.setItem('firebase_config', JSON.stringify(newConfig));
-    onConfigSaved(newConfig);
-    window.location.reload();
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950">
-      <div className="glass-card max-w-xl w-full rounded-2xl p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-brand-primary opacity-20 blur-3xl rounded-full"></div>
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-brand-success opacity-15 blur-3xl rounded-full"></div>
-        
-        <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
-          ⚡ Configuración de Firebase
-        </h2>
-        <p className="text-slate-400 text-sm mb-6">
-          Para habilitar el login en la nube, debes configurar un proyecto de Firebase (Authentication + Firestore).
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-brand-danger bg-opacity-15 border border-brand-danger border-opacity-30 text-xs text-brand-danger font-medium">
-            ⚠️ {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-              Opción A: Pegar fragmento del SDK config
-            </label>
-            <textarea
-              value={pasteSnippet}
-              onChange={handlePasteChange}
-              placeholder="const firebaseConfig = { apiKey: '...', projectId: '...', ... };"
-              rows="3"
-              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-brand-primary transition-all scrollbar-hide"
-            />
-          </div>
-
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-slate-800"></div>
-            <span className="flex-shrink mx-4 text-[10px] text-slate-600 uppercase font-bold tracking-widest">O ingresar campos manualmente</span>
-            <div className="flex-grow border-t border-slate-800"></div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">API Key *</label>
-              <input
-                type="text"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                required
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-brand-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Project ID *</label>
-              <input
-                type="text"
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                required
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-brand-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Auth Domain</label>
-              <input
-                type="text"
-                value={authDomain}
-                onChange={(e) => setAuthDomain(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-brand-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">App ID</label>
-              <input
-                type="text"
-                value={appId}
-                onChange={(e) => setAppId(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-300 focus:outline-none focus:border-brand-primary"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-brand-primary to-brand-purple text-white py-3 px-4 rounded-lg font-bold text-sm shadow-lg hover:from-blue-600 hover:to-indigo-600 transition-all transform hover:-translate-y-0.5 mt-2 flex items-center justify-center gap-2"
-          >
-            Guardar Configuración
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// --- PANTALLA DE ACCESO (LOGIN) ---
-const LoginScreen = ({ onResetConfig }) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleGoogleLogin = async () => {
-    setError("");
-    setLoading(true);
+  const handleGoogle = async () => {
+    setError(''); setLoading(true);
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
-      await firebaseAuth.signInWithPopup(provider);
-    } catch (e) {
-      console.error(e);
-      setError("No se pudo iniciar sesión con Google: " + e.message);
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-950">
-      <div className="glass-card max-w-md w-full rounded-2xl p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-brand-primary opacity-25 blur-3xl rounded-full"></div>
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-brand-success opacity-15 blur-3xl rounded-full"></div>
-
-        <div className="flex flex-col items-center mb-6 relative">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-primary to-brand-success flex items-center justify-center shadow-lg mb-3">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            Acceso de Jugadores
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 text-center">
-            Inicia sesión con tu cuenta de Google para acceder al dashboard financiero.
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-3 rounded-lg bg-brand-danger bg-opacity-15 border border-brand-danger border-opacity-30 text-xs text-brand-danger font-medium text-center">
-            ⚠️ {error}
-          </div>
-        )}
-
-        <div className="relative">
-          <button
-            onClick={handleGoogleLogin}
-            disabled={loading}
-            className="w-full bg-white hover:bg-slate-100 text-slate-900 py-3 px-4 rounded-lg font-bold text-sm shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-3 mt-2"
-          >
-            {loading ? (
-              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-slate-900"></div>
-            ) : (
-              <>
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                </svg>
-                <span>Continuar con Google</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        <div className="mt-8 pt-4 border-t border-slate-800 text-center relative">
-          <button
-            onClick={onResetConfig}
-            className="text-[10px] text-slate-500 font-medium hover:text-slate-400 transition-colors uppercase tracking-wider"
-          >
-            ⚙️ Configurar otro Firebase
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// --- PANEL DE ADMINISTRACIÓN ---
-const AdminPanel = ({ settings, firebaseDb, onResetConfig }) => {
-  const [newEmail, setNewEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const allowedEmails = settings.allowed_emails || [];
-  const adminEmail = settings.admin_email || "aitor@gmail.com";
-  const googleSheetsUrl = settings.google_sheets_url || "";
-
-  const handleAddEmail = async (e) => {
-    e.preventDefault();
-    const cleanEmail = newEmail.trim().toLowerCase();
-    if (!cleanEmail) return;
-    
-    if (allowedEmails.map(e => e.toLowerCase()).includes(cleanEmail)) {
-      alert("Este correo ya está en la lista.");
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      await firebaseDb.collection("config").doc("settings").update({
-        allowed_emails: firebase.firestore.FieldValue.arrayUnion(cleanEmail)
-      });
-      setNewEmail("");
-    } catch (e) {
-      alert("Error al añadir correo: " + e.message);
-    }
+      await window._fbAuth.signInWithPopup(provider);
+    } catch(e) { setError(translateError(e.code)); }
     setLoading(false);
   };
 
-  const handleRemoveEmail = async (emailToRemove) => {
-    if (confirm(`¿Estás seguro de que deseas revocar el acceso a ${emailToRemove}?`)) {
-      try {
-        await firebaseDb.collection("config").doc("settings").update({
-          allowed_emails: firebase.firestore.FieldValue.arrayRemove(emailToRemove)
-        });
-      } catch (e) {
-        alert("Error al eliminar correo: " + e.message);
-      }
-    }
+  const handleEmail = async (e) => {
+    e.preventDefault();
+    setError(''); setLoading(true);
+    const email = e.target.email.value;
+    const pass = e.target.pass.value;
+    try {
+      await window._fbAuth.signInWithEmailAndPassword(email, pass);
+    } catch(e) { setError(translateError(e.code)); }
+    setLoading(false);
   };
 
-  const handleUpdateAdmin = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    const val = prompt("Introduce el correo del nuevo administrador (cuidado: perderás tus accesos de administrador si no estás en la whitelist):");
-    if (!val || !val.trim()) return;
-    const cleanAdmin = val.trim().toLowerCase();
-    if (confirm(`¿Confirmas que deseas transferir el rol de administrador a: ${cleanAdmin}?`)) {
-      try {
-        await firebaseDb.collection("config").doc("settings").update({
-          admin_email: cleanAdmin
-        });
-        alert("Administrador actualizado. Inicia sesión de nuevo.");
-        firebaseAuth.signOut();
-      } catch (e) {
-        alert("Error al actualizar administrador: " + e.message);
-      }
-    }
+    setError(''); setLoading(true);
+    const email = e.target.email.value;
+    const pass = e.target.pass.value;
+    try {
+      await window._fbAuth.createUserWithEmailAndPassword(email, pass);
+    } catch(e) { setError(translateError(e.code)); }
+    setLoading(false);
   };
+
+  const [mode, setMode] = React.useState('login');
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-        🛠️ Panel de Administración
-      </h2>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Whitelist Panel */}
-        <Card className="border-t-4 border-t-brand-primary">
-          <h3 className="text-xl font-semibold mb-2 flex items-center gap-2 text-brand-primary">
-            👥 Jugadores Autorizados (Whitelist)
-          </h3>
-          <p className="text-xs text-gray-400 mb-4">
-            Introduce los correos electrónicos de los jugadores que tienen permitido acceder a la aplicación.
-          </p>
-
-          <form onSubmit={handleAddEmail} className="flex gap-2 mb-6">
-            <input
-              type="email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="jugador@correo.com"
-              required
-              className="flex-grow bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 focus:outline-none focus:border-brand-primary"
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-brand-primary hover:bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-sm transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
-            >
-              {loading ? "Añadiendo..." : "Autorizar"}
-            </button>
-          </form>
-
-          <div className="space-y-2 max-h-80 overflow-y-auto pr-1 scrollbar-hide">
-            {allowedEmails.length === 0 ? (
-              <p className="text-gray-500 italic text-center py-4 text-sm">No hay jugadores autorizados. Añade uno arriba.</p>
-            ) : (
-              allowedEmails.map((email) => (
-                <div key={email} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg border border-slate-800">
-                  <span className="font-medium text-sm text-slate-300 font-mono">{email}</span>
-                  <button
-                    onClick={() => handleRemoveEmail(email)}
-                    className="text-brand-danger hover:bg-brand-danger hover:bg-opacity-10 p-1.5 rounded-lg transition-all"
-                    title="Eliminar autorización"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                  </button>
-                </div>
-              ))
-            )}
+    <div className="min-h-screen flex items-center justify-center bg-dark p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-success flex items-center justify-center shadow-lg mx-auto mb-4">
+            <Icons.Trophy />
           </div>
-        </Card>
-
-        {/* Configurations Panel */}
-        <div className="space-y-6">
-          <Card className="border-t-4 border-t-brand-purple">
-            <h3 className="text-xl font-semibold mb-2 flex items-center gap-2 text-brand-purple">
-              ⚙️ Ajustes del Sistema
-            </h3>
-            <p className="text-xs text-gray-400 mb-4">Configuración del administrador del sistema y bases de datos.</p>
-
-            <div className="space-y-4">
-              <div className="p-3 bg-slate-900 rounded-lg flex justify-between items-center border border-slate-800">
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider">Correo Administrador</p>
-                  <p className="text-sm font-bold text-slate-200 font-mono mt-0.5">{adminEmail}</p>
-                </div>
-                <button
-                  onClick={handleUpdateAdmin}
-                  className="bg-brand-purple bg-opacity-20 text-brand-purple border border-brand-purple border-opacity-30 hover:bg-opacity-30 px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                >
-                  Cambiar Admin
-                </button>
-              </div>
-
-              <div className="p-3 bg-slate-900 rounded-lg border border-slate-800">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Enlace Google Sheets Actual</p>
-                <div className="text-xs font-mono text-slate-300 break-all select-all p-2 bg-dark rounded border border-slate-800 max-h-24 overflow-y-auto scrollbar-hide">
-                  {googleSheetsUrl || "Ninguno"}
-                </div>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  onClick={() => {
-                    if (confirm("¿Estás seguro de que deseas eliminar la configuración local de Firebase? Esto te desconectará del servidor.")) {
-                      localStorage.removeItem('firebase_config');
-                      onResetConfig();
-                    }
-                  }}
-                  className="text-xs text-brand-danger hover:underline font-bold"
-                >
-                  Restablecer Configuración de Firebase (Local)
-                </button>
-              </div>
-            </div>
-          </Card>
+          <h1 className="text-2xl font-bold text-white">Multas Wall Street</h1>
+          <p className="text-gray-400 mt-1 text-sm">Tolosa CF Eskubaloia</p>
+        </div>
+        <div className="bg-dark-paper border border-slate-700 rounded-2xl p-8 shadow-2xl">
+          <button onClick={handleGoogle} disabled={loading}
+            className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-semibold py-3 px-4 rounded-xl hover:bg-gray-100 transition-colors mb-6 disabled:opacity-50">
+            <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+            Entrar con Google
+          </button>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex-1 h-px bg-slate-700"></div>
+            <span className="text-gray-500 text-xs uppercase tracking-widest font-semibold">O con tu cuenta</span>
+            <div className="flex-1 h-px bg-slate-700"></div>
+          </div>
+          {mode === 'login' ? (
+            <form onSubmit={handleEmail} className="space-y-4">
+              <input name="email" type="email" placeholder="correo@ejemplo.com" required
+                className="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary text-sm" />
+              <input name="pass" type="password" placeholder="Contraseña" required
+                className="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary text-sm" />
+              <button type="submit" disabled={loading}
+                className="w-full bg-brand-primary text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition-colors disabled:opacity-50">
+                {loading ? 'Entrando...' : 'Iniciar Sesión'}
+              </button>
+              <p className="text-center text-sm text-gray-500 mt-2">
+                ¿Nuevo aquí?{' '}
+                <button type="button" onClick={() => setMode('register')} className="text-brand-primary hover:underline font-semibold">Crear cuenta</button>
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+              <input name="email" type="email" placeholder="correo@ejemplo.com" required
+                className="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary text-sm" />
+              <input name="pass" type="password" placeholder="Contraseña (mín. 6 caracteres)" required minLength={6}
+                className="w-full bg-dark border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-brand-primary text-sm" />
+              <button type="submit" disabled={loading}
+                className="w-full bg-brand-success text-white font-bold py-3 rounded-xl hover:bg-green-600 transition-colors disabled:opacity-50">
+                {loading ? 'Creando cuenta...' : 'Registrarse y Solicitar Acceso'}
+              </button>
+              <p className="text-center text-sm text-gray-500 mt-2">
+                ¿Ya tienes cuenta?{' '}
+                <button type="button" onClick={() => setMode('login')} className="text-brand-primary hover:underline font-semibold">Iniciar sesión</button>
+              </p>
+            </form>
+          )}
+          {error && <div className="mt-4 text-center text-sm text-brand-danger bg-red-900 bg-opacity-20 border border-red-800 rounded-lg p-3">{error}</div>}
         </div>
       </div>
     </div>
   );
 };
 
-// --- APP PRINCIPAL ---
-const App = () => {
-  const [firebaseConfig, setFirebaseConfig] = useState(() => getFirebaseConfig());
-  const [user, setUser] = useState(null);
-  const [userEmail, setUserEmail] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [settings, setSettings] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+const PendingScreen = ({ user }) => (
+  <div className="min-h-screen flex items-center justify-center bg-dark p-4">
+    <div className="w-full max-w-md text-center">
+      <div className="w-20 h-20 rounded-full bg-yellow-900 bg-opacity-30 border border-yellow-700 flex items-center justify-center mx-auto mb-6">
+        <Icons.Alert className="text-brand-warning" />
+      </div>
+      <h2 className="text-2xl font-bold text-white mb-3">Acceso Pendiente</h2>
+      <p className="text-gray-400 mb-2">Tu cuenta <strong className="text-white">{user.email}</strong> ha sido registrada.</p>
+      <p className="text-gray-400 mb-8">El administrador revisará tu solicitud y te dará acceso pronto.</p>
+      <button onClick={() => window._fbAuth.signOut()}
+        className="border border-brand-danger text-brand-danger px-6 py-3 rounded-xl hover:bg-red-900 hover:bg-opacity-20 transition-colors font-semibold">
+        Cerrar Sesión
+      </button>
+    </div>
+  </div>
+);
 
+const AdminPanel = ({ onClose }) => {
+  const [profiles, setProfiles] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const unsub = window._fbDb.collection('profiles_multas').onSnapshot(snap => {
+      const list = [];
+      snap.forEach(doc => list.push({ uid: doc.id, ...doc.data() }));
+      list.sort((a, b) => (a.isApproved === b.isApproved ? 0 : a.isApproved ? 1 : -1));
+      setProfiles(list);
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  const approve = async (uid) => {
+    await window._fbDb.collection('profiles_multas').doc(uid).update({ isApproved: true });
+  };
+  const revoke = async (uid) => {
+    if (!confirm('¿Quitar el acceso a este usuario?')) return;
+    await window._fbDb.collection('profiles_multas').doc(uid).update({ isApproved: false });
+  };
+  const deny = async (uid) => {
+    if (!confirm('¿Denegar y eliminar esta solicitud?')) return;
+    await window._fbDb.collection('profiles_multas').doc(uid).delete();
+  };
+
+  return (
+    <div className="min-h-screen bg-dark p-4 sm:p-8">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Panel de Administración</h2>
+            <p className="text-gray-400 text-sm mt-1">Gestiona el acceso de los jugadores</p>
+          </div>
+          <button onClick={onClose} className="bg-dark-card border border-slate-600 text-gray-300 px-4 py-2 rounded-lg hover:border-brand-primary hover:text-brand-primary transition-all text-sm font-medium">
+            ← Volver
+          </button>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-primary"></div></div>
+        ) : profiles.length === 0 ? (
+          <div className="text-center py-12 text-gray-500">No hay usuarios registrados aún.</div>
+        ) : (
+          <div className="space-y-3">
+            {profiles.map(p => (
+              <div key={p.uid} className="bg-dark-paper border border-slate-700 rounded-xl p-4 flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium truncate">{p.email}</p>
+                  <p className="text-xs mt-1">
+                    {p.isApproved
+                      ? <span className="text-brand-success font-semibold">✓ Aprobado</span>
+                      : <span className="text-brand-warning font-semibold">⏳ Pendiente</span>}
+                    {p.email === ADMIN_EMAIL && <span className="ml-2 text-brand-primary font-semibold">★ Admin</span>}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  {!p.isApproved && p.email !== ADMIN_EMAIL && (
+                    <>
+                      <button onClick={() => approve(p.uid)} className="bg-brand-success text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-600 transition-colors">Aprobar</button>
+                      <button onClick={() => deny(p.uid)} className="border border-brand-danger text-brand-danger px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-900 hover:bg-opacity-20 transition-colors">Denegar</button>
+                    </>
+                  )}
+                  {p.isApproved && p.email !== ADMIN_EMAIL && (
+                    <button onClick={() => revoke(p.uid)} className="border border-brand-danger text-brand-danger px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-900 hover:bg-opacity-20 transition-colors">Quitar acceso</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// AUTH WRAPPER — envuelve toda la app
+// ============================================================================
+const AuthWrapper = () => {
+  const [authState, setAuthState] = React.useState('loading'); // loading | login | pending | approved
+  const [currentUser, setCurrentUser] = React.useState(null);
+  const [isAdmin, setIsAdmin] = React.useState(false);
+  const [showAdmin, setShowAdmin] = React.useState(false);
+
+  React.useEffect(() => {
+    const unsub = window._fbAuth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        setCurrentUser(null);
+        setIsAdmin(false);
+        setAuthState('login');
+        return;
+      }
+      setCurrentUser(user);
+      try {
+        const profileRef = window._fbDb.collection('profiles_multas').doc(user.uid);
+        const profileDoc = await profileRef.get();
+        const isAdminUser = user.email === ADMIN_EMAIL;
+        if (!profileDoc.exists) {
+          await profileRef.set({
+            email: user.email,
+            isApproved: isAdminUser,
+            isAdmin: isAdminUser,
+            requestDate: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          setIsAdmin(isAdminUser);
+          setAuthState(isAdminUser ? 'approved' : 'pending');
+        } else {
+          const data = profileDoc.data();
+          if (isAdminUser && (!data.isApproved || !data.isAdmin)) {
+            await profileRef.update({ isApproved: true, isAdmin: true });
+          }
+          setIsAdmin(isAdminUser || data.isAdmin || false);
+          setAuthState((isAdminUser || data.isApproved) ? 'approved' : 'pending');
+        }
+      } catch(e) {
+        console.error('Auth profile error:', e);
+        setAuthState(user.email === ADMIN_EMAIL ? 'approved' : 'pending');
+        setIsAdmin(user.email === ADMIN_EMAIL);
+      }
+    });
+    return unsub;
+  }, []);
+
+  if (authState === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center bg-dark">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
+    </div>;
+  }
+  if (authState === 'login') return <LoginScreen />;
+  if (authState === 'pending') return <PendingScreen user={currentUser} />;
+  if (showAdmin) return <AdminPanel onClose={() => setShowAdmin(false)} />;
+  return <App user={currentUser} isAdmin={isAdmin} onShowAdmin={() => setShowAdmin(true)} />;
+};
+
+const App = ({ user, isAdmin, onShowAdmin }) => {
   const [activeTab, setActiveTab] = useState('finanzas');
   const [data, setData] = useState({ players: [], finances: null });
   const [currentMonthName, setCurrentMonthName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Escuchar estado de autenticación en Firebase
-  useEffect(() => {
-    if (!firebaseAuth) {
-      setAuthLoading(false);
-      return;
-    }
-
-    const unsubscribe = firebaseAuth.onAuthStateChanged(async (currentUser) => {
-      if (currentUser) {
-        const email = currentUser.email.toLowerCase();
-        setUser(currentUser);
-        setUserEmail(email);
-
-        try {
-          const docRef = firebaseDb.collection("config").doc("settings");
-          let doc = await docRef.get();
-          
-          if (!doc.exists) {
-            // El documento no existe en Firestore, si el email es el admin por defecto lo creamos
-            if (email === "aitor@gmail.com") {
-              const defaultSettings = {
-                admin_email: "aitor@gmail.com",
-                allowed_emails: [],
-                google_sheets_url: GOOGLE_SHEETS_CSV_URL
-              };
-              await docRef.set(defaultSettings);
-              doc = await docRef.get();
-            } else {
-              throw new Error("La base de datos de Firestore no está inicializada.");
-            }
-          }
-
-          const data = doc.data();
-          setSettings(data);
-          
-          const adminEmail = data.admin_email ? data.admin_email.toLowerCase() : "aitor@gmail.com";
-          const allowedList = data.allowed_emails ? data.allowed_emails.map(e => e.toLowerCase()) : [];
-          
-          if (email === adminEmail) {
-            setIsAdmin(true);
-          } else if (allowedList.includes(email)) {
-            setIsAdmin(false);
-          } else {
-            throw new Error("Acceso denegado. Tu correo no está en la lista de jugadores autorizados.");
-          }
-        } catch (e) {
-          console.error("Error de autorización:", e);
-          alert(e.message);
-          firebaseAuth.signOut();
-          setUser(null);
-          setUserEmail("");
-          setIsAdmin(false);
-          setSettings(null);
-        }
-      } else {
-        setUser(null);
-        setUserEmail("");
-        setIsAdmin(false);
-        setSettings(null);
-      }
-      setAuthLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [firebaseConfig]);
-
-  // Escucha de Firestore en tiempo real para cambios en configuraciones (Sheets, Whitelist, etc.)
-  useEffect(() => {
-    if (!user || !firebaseDb) return;
-
-    const unsubscribe = firebaseDb.collection("config").doc("settings").onSnapshot((doc) => {
-      if (doc.exists) {
-        const data = doc.data();
-        setSettings(data);
-        
-        const email = user.email.toLowerCase();
-        const adminEmail = data.admin_email ? data.admin_email.toLowerCase() : "aitor@gmail.com";
-        const allowedList = data.allowed_emails ? data.allowed_emails.map(e => e.toLowerCase()) : [];
-        
-        if (email === adminEmail) {
-          setIsAdmin(true);
-        } else if (allowedList.includes(email)) {
-          setIsAdmin(false);
-        } else {
-          alert("Tu acceso ha sido revocado por el administrador.");
-          firebaseAuth.signOut();
-        }
-      }
-    }, (error) => {
-      console.error("Error al escuchar cambios de Firestore:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user]);
-
-  // Carga de datos de Google Sheets
   useEffect(() => {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     setCurrentMonthName(monthNames[new Date().getMonth()]);
 
-    if (!user || !settings) {
-      return;
-    }
+    const savedUrl = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
 
-    setIsLoading(true);
-    const sheetUrl = settings.google_sheets_url || GOOGLE_SHEETS_CSV_URL;
-
-    if (sheetUrl === "PEGAR_ENLACE_AQUI") {
+    if (savedUrl === "PEGAR_ENLACE_AQUI") {
       const parsed = processData(MOCK_SHEET_DATA);
       setData(parsed);
       setIsLoading(false);
     } else {
-      const csvUrl = toDirectCsvUrl(sheetUrl);
+      // Convertir cualquier URL de Sheets a URL de descarga CSV directa
+      const csvUrl = toDirectCsvUrl(savedUrl);
       
       Papa.parse(csvUrl, {
         download: true,
@@ -1212,6 +937,7 @@ const App = () => {
         skipEmptyLines: true,
         complete: (results) => {
           try {
+            // Detectar si Google devolvió un HTML en vez de un CSV (error de acceso)
             const firstCell = results.data && results.data[0] && results.data[0][0] ? results.data[0][0].toString() : "";
             if (firstCell.includes("<!DOCTYPE") || firstCell.includes("<html") || firstCell.includes("google.com/accounts")) {
               throw new Error("Google Sheets devolvió una página HTML en vez de CSV. Asegúrate de que el documento es público: Compartir → Cualquier persona con el enlace → Lector.");
@@ -1226,6 +952,7 @@ const App = () => {
           } catch (e) {
             console.error("Error al procesar los datos:", e);
             alert("Error al cargar los datos:\n\n" + e.message + "\n\nSe mostrarán datos de ejemplo.");
+            localStorage.removeItem('google_sheets_url');
             setData(processData(MOCK_SHEET_DATA));
           }
           setIsLoading(false);
@@ -1233,16 +960,16 @@ const App = () => {
         error: (error) => {
           console.error("Error de red leyendo Google Sheets:", error);
           alert("No se pudo conectar con Google Sheets.\n\nComprueba:\n1. El enlace es correcto\n2. El documento es público (Compartir → Cualquier persona con el enlace → Lector)\n\nSe mostrarán datos de ejemplo.");
+          localStorage.removeItem('google_sheets_url');
           setData(processData(MOCK_SHEET_DATA));
           setIsLoading(false);
         }
       });
     }
-  }, [user, settings]);
+  }, []);
 
-  const handleConfigUrl = async () => {
-    if (!isAdmin || !settings) return;
-    const currentUrl = settings.google_sheets_url || GOOGLE_SHEETS_CSV_URL;
+  const handleConfigUrl = () => {
+    const currentUrl = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
     const newUrl = prompt(
       "Introduce el enlace de tu Google Sheets.\n\n✅ REQUISITO: El documento debe ser PÚBLICO.\n   → Compartir → Cualquier persona con el enlace → Lector\n\nPega el enlace normal (lo convertiremos automáticamente a CSV):",
       currentUrl === "PEGAR_ENLACE_AQUI" ? "" : currentUrl
@@ -1250,43 +977,13 @@ const App = () => {
     
     if (newUrl !== null && newUrl.trim() !== "") {
       const urlToSave = toDirectCsvUrl(newUrl.trim());
-      try {
-        await firebaseDb.collection("config").doc("settings").update({
-          google_sheets_url: urlToSave
-        });
-        alert("Enlace actualizado en Firestore. Se actualizará en todas las pantallas.");
-      } catch (e) {
-        alert("Error al actualizar enlace: " + e.message);
-      }
+      localStorage.setItem('google_sheets_url', urlToSave);
+      window.location.reload();
     }
   };
 
-  // 1. Mostrar pantalla de setup si no hay configuración de Firebase
-  if (!firebaseConfig) {
-    return <FirebaseSetupWizard onConfigSaved={(cfg) => setFirebaseConfig(cfg)} />;
-  }
-
-  // 2. Mostrar spinner mientras valida el estado de Auth
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-dark">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
-      </div>
-    );
-  }
-
-  // 3. Mostrar pantalla de login si no hay usuario autenticado
-  if (!user) {
-    return <LoginScreen onResetConfig={() => setFirebaseConfig(null)} />;
-  }
-
-  // 4. Mostrar spinner si los settings de Firestore aún no se han cargado
-  if (!settings || isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-dark">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
-      </div>
-    );
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-dark"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>;
   }
 
   const renderContent = () => {
@@ -1296,7 +993,6 @@ const App = () => {
       case 'cuotas': return <SectionDebt players={data.players} type="Cuota" title="Cuotas" icon={<Icons.Money />} dataKey="cuotasDeuda" />;
       case 'balones': return <SectionDebt players={data.players} type="Balón" title="Balones" icon={<Icons.Ball />} dataKey="balonesDeuda" />;
       case 'players': return <PlayersList players={data.players} />;
-      case 'admin': return <AdminPanel settings={settings} firebaseDb={firebaseDb} onResetConfig={() => setFirebaseConfig(null)} />;
       default: return <Finanzas finances={data.finances} />;
     }
   };
@@ -1308,9 +1004,6 @@ const App = () => {
     { id: 'balones', label: 'Balones', icon: <Icons.Ball /> },
     { id: 'players', label: 'Plantilla', icon: <Icons.User /> },
   ];
-  if (isAdmin) {
-    tabs.push({ id: 'admin', label: 'Admin', icon: <Icons.Settings /> });
-  }
 
   return (
     <div className="min-h-screen text-slate-200">
@@ -1336,21 +1029,22 @@ const App = () => {
                   </button>
                 ))}
               </div>
-              {isAdmin && (
-                <button onClick={handleConfigUrl} className="bg-dark-card border border-slate-600 hover:border-brand-primary hover:text-brand-primary text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm text-sm font-medium">
-                  <Icons.Settings />
-                  <span className="hidden sm:inline">Configurar Google Sheets</span>
-                </button>
-              )}
-              <div className="flex items-center gap-2 bg-dark bg-opacity-50 px-3 py-1.5 rounded-lg border border-slate-700">
-                <div className="w-2 h-2 rounded-full bg-brand-success animate-pulse"></div>
-                <span className="text-xs text-gray-300 font-mono hidden md:inline max-w-[120px] truncate" title={userEmail}>
-                  {userEmail}
-                </span>
-                <button onClick={() => firebaseAuth.signOut()} className="text-gray-400 hover:text-brand-danger transition-colors p-1 ml-1" title="Cerrar sesión">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                  </svg>
+              <div className="flex items-center gap-2">
+                {isAdmin && (
+                  <>
+                    <button onClick={handleConfigUrl} className="bg-dark-card border border-slate-600 hover:border-brand-primary hover:text-brand-primary text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm text-sm font-medium">
+                      <Icons.Settings />
+                      <span className="hidden sm:inline">Sheets</span>
+                    </button>
+                    <button onClick={onShowAdmin} className="bg-dark-card border border-slate-600 hover:border-brand-primary hover:text-brand-primary text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm text-sm font-medium">
+                      <Icons.Trophy />
+                      <span className="hidden sm:inline">Admin</span>
+                    </button>
+                  </>
+                )}
+                <button onClick={() => window._fbAuth.signOut()} title="Cerrar sesión" className="bg-dark-card border border-slate-600 hover:border-brand-danger hover:text-brand-danger text-gray-400 px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm text-sm font-medium">
+                  <Icons.TrendingDown />
+                  <span className="hidden sm:inline">Salir</span>
                 </button>
               </div>
             </div>
@@ -1359,17 +1053,15 @@ const App = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-8">
-        {data.stats && <ImportStatusBanner stats={data.stats} />}
+        
         {data.players.length > 0 ? renderContent() : (
           <div className="flex flex-col items-center justify-center h-64 bg-dark-card rounded-2xl border border-dashed border-slate-600 p-8 text-center mt-10">
              <div className="text-brand-danger mb-4"><Icons.Alert /></div>
              <h2 className="text-xl font-bold mb-2">No se han podido cargar los datos</h2>
              <p className="text-gray-400 mb-6 max-w-md">El enlace configurado no es válido o el documento no es público. Vuelve a configurar el enlace de Google Sheets.</p>
-             {isAdmin && (
-               <button onClick={handleConfigUrl} className="bg-brand-primary text-white px-6 py-3 rounded-lg font-bold shadow-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
-                 <Icons.Settings /> Configurar Enlace
-               </button>
-             )}
+             <button onClick={handleConfigUrl} className="bg-brand-primary text-white px-6 py-3 rounded-lg font-bold shadow-lg hover:bg-blue-600 transition-colors flex items-center gap-2">
+               <Icons.Settings /> Configurar Enlace
+             </button>
           </div>
         )}
       </main>
@@ -1388,7 +1080,7 @@ const App = () => {
 };
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+root.render(<AuthWrapper />);
     </script>
 </head>
 <body class="bg-dark min-h-screen">
