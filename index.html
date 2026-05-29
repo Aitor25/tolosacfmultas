@@ -921,64 +921,71 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     setCurrentMonthName(monthNames[new Date().getMonth()]);
 
-    const savedUrl = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
-
-    if (savedUrl === "PEGAR_ENLACE_AQUI") {
-      const parsed = processData(MOCK_SHEET_DATA);
-      setData(parsed);
-      setIsLoading(false);
-    } else {
-      // Convertir cualquier URL de Sheets a URL de descarga CSV directa
-      const csvUrl = toDirectCsvUrl(savedUrl);
-      
+    // Leer URL del Sheets desde Firestore (compartida para todos los usuarios)
+    const loadSheets = async (url) => {
+      if (!url || url === "PEGAR_ENLACE_AQUI") {
+        setData(processData(MOCK_SHEET_DATA));
+        setIsLoading(false);
+        return;
+      }
+      const csvUrl = toDirectCsvUrl(url);
       Papa.parse(csvUrl, {
         download: true,
         header: false,
         skipEmptyLines: true,
         complete: (results) => {
           try {
-            // Detectar si Google devolvió un HTML en vez de un CSV (error de acceso)
             const firstCell = results.data && results.data[0] && results.data[0][0] ? results.data[0][0].toString() : "";
             if (firstCell.includes("<!DOCTYPE") || firstCell.includes("<html") || firstCell.includes("google.com/accounts")) {
-              throw new Error("Google Sheets devolvió una página HTML en vez de CSV. Asegúrate de que el documento es público: Compartir → Cualquier persona con el enlace → Lector.");
+              throw new Error("Google Sheets devolvió HTML. Asegúrate de que el documento es público.");
             }
-            
             const normalized = normalizeSheetData(results.data);
             const parsed = processData(normalized);
-            if (parsed.players.length === 0) {
-              throw new Error("No se encontraron jugadores en el CSV. Revisa el formato del sheet.");
-            }
+            if (parsed.players.length === 0) throw new Error("No se encontraron jugadores en el CSV.");
             setData(parsed);
           } catch (e) {
-            console.error("Error al procesar los datos:", e);
-            alert("Error al cargar los datos:\n\n" + e.message + "\n\nSe mostrarán datos de ejemplo.");
-            localStorage.removeItem('google_sheets_url');
+            console.error("Error procesando datos:", e);
             setData(processData(MOCK_SHEET_DATA));
           }
           setIsLoading(false);
         },
-        error: (error) => {
-          console.error("Error de red leyendo Google Sheets:", error);
-          alert("No se pudo conectar con Google Sheets.\n\nComprueba:\n1. El enlace es correcto\n2. El documento es público (Compartir → Cualquier persona con el enlace → Lector)\n\nSe mostrarán datos de ejemplo.");
-          localStorage.removeItem('google_sheets_url');
-          setData(processData(MOCK_SHEET_DATA));
-          setIsLoading(false);
-        }
+        error: () => { setData(processData(MOCK_SHEET_DATA)); setIsLoading(false); }
       });
-    }
+    };
+
+    // Leer desde Firestore, con fallback a localStorage por compatibilidad
+    window._fbDb.collection('app_config').doc('sheets').get()
+      .then(doc => {
+        const url = doc.exists ? doc.data().url : (localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL);
+        loadSheets(url);
+      })
+      .catch(() => {
+        const url = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
+        loadSheets(url);
+      });
   }, []);
 
-  const handleConfigUrl = () => {
-    const currentUrl = localStorage.getItem('google_sheets_url') || GOOGLE_SHEETS_CSV_URL;
+  const handleConfigUrl = async () => {
+    let currentUrl = GOOGLE_SHEETS_CSV_URL;
+    try {
+      const doc = await window._fbDb.collection('app_config').doc('sheets').get();
+      if (doc.exists) currentUrl = doc.data().url;
+    } catch(e) {}
+
     const newUrl = prompt(
       "Introduce el enlace de tu Google Sheets.\n\n✅ REQUISITO: El documento debe ser PÚBLICO.\n   → Compartir → Cualquier persona con el enlace → Lector\n\nPega el enlace normal (lo convertiremos automáticamente a CSV):",
       currentUrl === "PEGAR_ENLACE_AQUI" ? "" : currentUrl
     );
-    
+
     if (newUrl !== null && newUrl.trim() !== "") {
       const urlToSave = toDirectCsvUrl(newUrl.trim());
-      localStorage.setItem('google_sheets_url', urlToSave);
-      window.location.reload();
+      try {
+        await window._fbDb.collection('app_config').doc('sheets').set({ url: urlToSave });
+        localStorage.setItem('google_sheets_url', urlToSave); // fallback
+        window.location.reload();
+      } catch(e) {
+        alert("Error guardando el enlace: " + e.message);
+      }
     }
   };
 
