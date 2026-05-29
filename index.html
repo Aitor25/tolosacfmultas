@@ -89,8 +89,8 @@ const MOCK_SHEET_DATA = [
 
 const SEASON_MONTHS = ["Ago", "Sep", "Oct", "Nov", "Dic", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul"];
 
-function getRequiredMonths() {
-  const currentMonthIndex = new Date().getMonth(); 
+function getRequiredMonths(overrideMonth) {
+  const currentMonthIndex = overrideMonth !== undefined ? overrideMonth : new Date().getMonth();
   let endSlice = currentMonthIndex >= 7 ? currentMonthIndex - 7 + 1 : currentMonthIndex + 5 + 1;
   return SEASON_MONTHS.slice(0, endSlice);
 }
@@ -172,8 +172,8 @@ function normalizeSheetData(rawData) {
   return rawData;
 }
 
-function processData(rawData) {
-  const requiredMonths = getRequiredMonths();
+function processData(rawData, overrideMonth) {
+  const requiredMonths = getRequiredMonths(overrideMonth);
   
   let totalIngresos = 0;
   let totalGastos = 0;
@@ -916,6 +916,7 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
   const [data, setData] = useState({ players: [], finances: null });
   const [currentMonthName, setCurrentMonthName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [testMonth, setTestMonth] = useState(null); // null = mes real
 
   useEffect(() => {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -924,7 +925,7 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
     // Leer URL del Sheets desde Firestore (compartida para todos los usuarios)
     const loadSheets = async (url) => {
       if (!url || url === "PEGAR_ENLACE_AQUI") {
-        setData(processData(MOCK_SHEET_DATA));
+        const _mp = processData(MOCK_SHEET_DATA); _mp._rawNormalized = MOCK_SHEET_DATA; setData(_mp);
         setIsLoading(false);
         return;
       }
@@ -942,14 +943,15 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
             const normalized = normalizeSheetData(results.data);
             const parsed = processData(normalized);
             if (parsed.players.length === 0) throw new Error("No se encontraron jugadores en el CSV.");
+            parsed._rawNormalized = normalized;
             setData(parsed);
           } catch (e) {
             console.error("Error procesando datos:", e);
-            setData(processData(MOCK_SHEET_DATA));
+            const _mp = processData(MOCK_SHEET_DATA); _mp._rawNormalized = MOCK_SHEET_DATA; setData(_mp);
           }
           setIsLoading(false);
         },
-        error: () => { setData(processData(MOCK_SHEET_DATA)); setIsLoading(false); }
+        error: () => { const _mp = processData(MOCK_SHEET_DATA); _mp._rawNormalized = MOCK_SHEET_DATA; setData(_mp); setIsLoading(false); }
       });
     };
 
@@ -993,14 +995,20 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
     return <div className="min-h-screen flex items-center justify-center bg-dark"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>;
   }
 
+  // Reprocesar datos cuando cambia el mes de prueba
+  const displayData = React.useMemo(() => {
+    if (!data._rawNormalized) return data;
+    return processData(data._rawNormalized, testMonth !== null ? testMonth : undefined);
+  }, [data, testMonth]);
+
   const renderContent = () => {
     switch(activeTab) {
-      case 'finanzas': return <Finanzas finances={data.finances} />;
-      case 'dashboard': return <Dashboard players={data.players} />;
-      case 'cuotas': return <SectionDebt players={data.players} type="Cuota" title="Cuotas" icon={<Icons.Money />} dataKey="cuotasDeuda" />;
-      case 'balones': return <SectionDebt players={data.players} type="Balón" title="Balones" icon={<Icons.Ball />} dataKey="balonesDeuda" />;
-      case 'players': return <PlayersList players={data.players} />;
-      default: return <Finanzas finances={data.finances} />;
+      case 'finanzas': return <Finanzas finances={displayData.finances} />;
+      case 'dashboard': return <Dashboard players={displayData.players} />;
+      case 'cuotas': return <SectionDebt players={displayData.players} type="Cuota" title="Cuotas" icon={<Icons.Money />} dataKey="cuotasDeuda" />;
+      case 'balones': return <SectionDebt players={displayData.players} type="Balón" title="Balones" icon={<Icons.Ball />} dataKey="balonesDeuda" />;
+      case 'players': return <PlayersList players={displayData.players} />;
+      default: return <Finanzas finances={displayData.finances} />;
     }
   };
 
@@ -1048,6 +1056,26 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
                       <span className="hidden sm:inline">Admin</span>
                     </button>
                   </>
+                )}
+                {isAdmin && (
+                  <select
+                    value={testMonth !== null ? testMonth : ''}
+                    onChange={e => setTestMonth(e.target.value === '' ? null : parseInt(e.target.value))}
+                    title="Simular mes (solo admin)"
+                    className="bg-yellow-900 border border-yellow-600 text-yellow-300 px-2 py-2 rounded-lg text-xs font-mono cursor-pointer"
+                  >
+                    <option value="">📅 Mes real</option>
+                    <option value="7">Ago</option>
+                    <option value="8">Sep</option>
+                    <option value="9">Oct</option>
+                    <option value="10">Nov</option>
+                    <option value="11">Dic</option>
+                    <option value="0">Ene</option>
+                    <option value="1">Feb</option>
+                    <option value="2">Mar</option>
+                    <option value="3">Abr</option>
+                    <option value="4">May</option>
+                  </select>
                 )}
                 <button onClick={() => window._fbAuth.signOut()} title="Cerrar sesión" className="bg-dark-card border border-slate-600 hover:border-brand-danger hover:text-brand-danger text-gray-400 px-3 py-2 rounded-lg flex items-center gap-2 transition-all shadow-sm text-sm font-medium">
                   <Icons.TrendingDown />
