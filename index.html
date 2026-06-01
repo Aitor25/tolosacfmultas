@@ -281,10 +281,20 @@ function processData(rawData, overrideMonth) {
           adelantosData.push({ nombre: nombreStr, amount: playerAdelantado });
         }
 
+        // Guardar multas por mes para el top 5
+        const multasPorMes = {};
+        Object.keys(row).filter(k => k.startsWith('Multa ')).forEach(k => { multasPorMes[k] = row[k]; });
+        const totalMultas = Object.values(multasPorMes).reduce((sum, v) => {
+          const n = parseFloat((v||'').toString().replace(',','.'));
+          return sum + (isNaN(n) || n < 0 ? 0 : n);
+        }, 0);
+
         playersData.push({
           nombre: nombreStr,
+          isPlayer,
           totalIngresado: playerIngresado,
           totalAdelantado: playerAdelantado,
+          totalMultas,
           cuotasDeuda,
           balonesDeuda
         });
@@ -313,15 +323,8 @@ function processData(rawData, overrideMonth) {
       monthlyStats: filteredMonthlyStats,
       adelantos: adelantosData.sort((a, b) => b.amount - a.amount),
       _topMultas: playersData
-        .filter(p => p.isPlayer)
-        .map(p => {
-          const total = Object.keys(p).filter(k => k.startsWith('Multa ')).reduce((sum, k) => {
-            const v = p[k] ? parseFloat(p[k].toString().replace(',', '.')) : 0;
-            return sum + (isNaN(v) ? 0 : v);
-          }, 0);
-          return { nombre: p.nombre, total };
-        })
-        .filter(p => p.total > 0)
+        .filter(p => p.isPlayer && p.totalMultas > 0)
+        .map(p => ({ nombre: p.nombre, total: p.totalMultas }))
         .sort((a, b) => b.total - a.total)
         .slice(0, 5)
     },
