@@ -2,6 +2,7 @@
 <html lang="es" class="dark">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="escudo.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multas Tolosa Eskubaloia</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1057,7 +1058,9 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
             <div className="flex items-center gap-3">
               <img src="escudo.png" alt="Tolosa CF" className="w-10 h-10 object-contain hidden sm:block" onError={e => e.target.style.display='none'} />
               <div>
-                <h1 className="text-xl font-bold text-white leading-tight">Tolosa Eskubaloia</h1>
+                <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 leading-tight">
+                  Multas <span className="text-brand-primary">Wall Street</span>
+                </h1>
                 <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest mt-0.5">Balance Neto: {data.finances ? data.finances.balanceNeto : 0}€</p>
               </div>
             </div>
