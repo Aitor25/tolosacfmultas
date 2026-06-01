@@ -917,7 +917,7 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
   const [currentMonthName, setCurrentMonthName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [testMonth, setTestMonth] = useState(null); // null = mes real
-  const [displayData, setDisplayData] = useState({ players: [], finances: null });
+  const [displayData, setDisplayData] = useState(null);
 
   useEffect(() => {
     if (!data._rawNormalized) { setDisplayData(data); return; }
@@ -1006,13 +1006,14 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
 
 
   const renderContent = () => {
+    const d = displayData || data;
     switch(activeTab) {
-      case 'finanzas': return <Finanzas finances={displayData.finances} />;
-      case 'dashboard': return <Dashboard players={displayData.players} />;
-      case 'cuotas': return <SectionDebt players={displayData.players} type="Cuota" title="Cuotas" icon={<Icons.Money />} dataKey="cuotasDeuda" />;
-      case 'balones': return <SectionDebt players={displayData.players} type="Balón" title="Balones" icon={<Icons.Ball />} dataKey="balonesDeuda" />;
-      case 'players': return <PlayersList players={displayData.players} />;
-      default: return <Finanzas finances={displayData.finances} />;
+      case 'finanzas': return <Finanzas finances={d.finances} />;
+      case 'dashboard': return <Dashboard players={d.players} />;
+      case 'cuotas': return <SectionDebt players={d.players} type="Cuota" title="Cuotas" icon={<Icons.Money />} dataKey="cuotasDeuda" />;
+      case 'balones': return <SectionDebt players={d.players} type="Balón" title="Balones" icon={<Icons.Ball />} dataKey="balonesDeuda" />;
+      case 'players': return <PlayersList players={d.players} />;
+      default: return <Finanzas finances={d.finances} />;
     }
   };
 
