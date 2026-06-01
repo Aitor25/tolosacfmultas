@@ -917,6 +917,14 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
   const [currentMonthName, setCurrentMonthName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [testMonth, setTestMonth] = useState(null); // null = mes real
+  const [displayData, setDisplayData] = useState({ players: [], finances: null });
+
+  useEffect(() => {
+    if (!data._rawNormalized) { setDisplayData(data); return; }
+    const reprocessed = processData(data._rawNormalized, testMonth !== null ? testMonth : undefined);
+    reprocessed._rawNormalized = data._rawNormalized;
+    setDisplayData(reprocessed);
+  }, [data, testMonth]);
 
   useEffect(() => {
     const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -995,14 +1003,7 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
     return <div className="min-h-screen flex items-center justify-center bg-dark"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div></div>;
   }
 
-  // Reprocesar datos cuando cambia el mes de prueba
-  const [displayData, setDisplayData] = useState(data);
-  useEffect(() => {
-    if (!data._rawNormalized) { setDisplayData(data); return; }
-    const reprocessed = processData(data._rawNormalized, testMonth !== null ? testMonth : undefined);
-    reprocessed._rawNormalized = data._rawNormalized;
-    setDisplayData(reprocessed);
-  }, [data, testMonth]);
+
 
   const renderContent = () => {
     switch(activeTab) {
