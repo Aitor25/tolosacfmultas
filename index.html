@@ -1056,7 +1056,9 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <img src="escudo.png" alt="Tolosa CF" className="w-10 h-10 object-contain hidden sm:block" onError={e => e.target.style.display='none'} />
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-primary to-brand-success flex items-center justify-center shadow-lg hidden sm:flex">
+                <Icons.TrendingUp className="text-white" />
+              </div>
               <div>
                 <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 leading-tight">
                   Multas <span className="text-brand-primary">Wall Street</span>
