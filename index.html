@@ -425,6 +425,7 @@ const FinanceChart = ({ data }) => {
 
 // --- VISTAS ---
 const Finanzas = ({ finances }) => {
+  if (!finances) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand-primary"></div></div>;
   const { balanceNeto, totalIngresos, totalGastos, totalDonaciones, monthlyStats, adelantos } = finances;
 
   return (
@@ -473,6 +474,7 @@ const Finanzas = ({ finances }) => {
 };
 
 const Dashboard = ({ players }) => {
+  if (!players) return null;
   const totalMorososCuotas = players.filter(p => p.cuotasDeuda.length > 0).length;
   const totalMorososBalones = players.filter(p => p.balonesDeuda.length > 0).length;
   const cuotasAlDiaPorc = Math.round(((players.length - totalMorososCuotas) / players.length) * 100) || 0;
@@ -534,6 +536,7 @@ const Dashboard = ({ players }) => {
 };
 
 const SectionDebt = ({ players, type, title, icon, dataKey }) => {
+  if (!players) return null;
   const alDiaCount = players.filter(p => p[dataKey].length === 0).length;
   const percentage = Math.round((alDiaCount / players.length) * 100) || 0;
 
@@ -597,6 +600,7 @@ const SectionDebt = ({ players, type, title, icon, dataKey }) => {
 };
 
 const PlayersList = ({ players }) => {
+  if (!players) return null;
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold flex items-center gap-2"><Icons.User /> Plantilla al Detalle</h2>
