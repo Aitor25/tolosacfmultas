@@ -288,6 +288,10 @@ function processData(rawData, overrideMonth) {
           const n = parseFloat((v||'').toString().replace(',','.'));
           return sum + (isNaN(n) || n < 0 ? 0 : n);
         }, 0);
+        const mayorMulta = Object.values(multasPorMes).reduce((max, v) => {
+          const n = parseFloat((v||'').toString().replace(',','.'));
+          return (!isNaN(n) && n > max) ? n : max;
+        }, 0);
 
         playersData.push({
           nombre: nombreStr,
@@ -295,6 +299,7 @@ function processData(rawData, overrideMonth) {
           totalIngresado: playerIngresado,
           totalAdelantado: playerAdelantado,
           totalMultas,
+          mayorMulta,
           cuotasDeuda,
           balonesDeuda
         });
@@ -639,9 +644,9 @@ const PlayersList = ({ players }) => {
                 <p className="text-[10px] text-gray-400 uppercase">Ingresado</p>
                 <p className="text-lg font-bold text-brand-primary">{p.totalIngresado} €</p>
               </div>
-              <div className="bg-dark rounded-lg p-2 text-center border border-brand-warning border-opacity-20">
-                <p className="text-[10px] text-gray-400 uppercase">Adelantos</p>
-                <p className="text-lg font-bold text-brand-warning">{p.totalAdelantado} €</p>
+              <div className="bg-dark rounded-lg p-2 text-center border border-brand-danger border-opacity-20">
+                <p className="text-[10px] text-gray-400 uppercase">Mayor Multa</p>
+                <p className="text-lg font-bold text-brand-danger">{p.mayorMulta > 0 ? p.mayorMulta + " €" : "-"}</p>
               </div>
             </div>
 
