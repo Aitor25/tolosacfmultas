@@ -88,11 +88,15 @@ const MOCK_SHEET_DATA = [
 ];
 
 const SEASON_MONTHS = ["Ago", "Sep", "Oct", "Nov", "Dic", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul"];
+// Meses reales de la temporada (los que existen en el sheet)
+const CUOTA_MONTHS = ["Ago", "Sep", "Oct", "Nov", "Dic", "Ene", "Feb", "Mar", "Abr", "May"];
+const BALON_MONTHS = ["Sep", "Oct", "Nov", "Dic", "Ene", "Feb", "Mar", "Abr", "May"];
 
 function getRequiredMonths(overrideMonth) {
   const currentMonthIndex = overrideMonth !== undefined ? overrideMonth : new Date().getMonth();
   let endSlice = currentMonthIndex >= 7 ? currentMonthIndex - 7 + 1 : currentMonthIndex + 5 + 1;
-  return SEASON_MONTHS.slice(0, endSlice);
+  // Limitar a los meses que realmente existen en el sheet
+  return CUOTA_MONTHS.slice(0, Math.min(endSlice, CUOTA_MONTHS.length));
 }
 
 // Convierte cualquier URL de Google Sheets a una URL de descarga CSV directa.
@@ -262,16 +266,15 @@ function processData(rawData, overrideMonth) {
 
       // Lógica estricta de deudas solo para jugadores
       if (isPlayer) {
-        // Meses en los que NO hay balón (no se cobra, no se marca como moroso)
-        const sinBalon = new Set(["Ago"]);
+        // Cuotas: meses requeridos hasta hoy limitados al sheet
         requiredMonths.forEach(m => {
           const valCuota = row[`Cuota ${m}`] ? row[`Cuota ${m}`].toString().trim() : "";
           if (valCuota === "") cuotasDeuda.push(m);
-
-          if (!sinBalon.has(m)) {
-            const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
-            if (valBalon === "") balonesDeuda.push(m);
-          }
+        });
+        // Balones: solo meses que existen en el sheet (Sep-May)
+        requiredMonths.filter(m => BALON_MONTHS.includes(m)).forEach(m => {
+          const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
+          if (valBalon === "") balonesDeuda.push(m);
         });
 
         if (playerAdelantado > 0) {
@@ -308,7 +311,19 @@ function processData(rawData, overrideMonth) {
       totalGastos,
       totalDonaciones,
       monthlyStats: filteredMonthlyStats,
-      adelantos: adelantosData.sort((a, b) => b.amount - a.amount)
+      adelantos: adelantosData.sort((a, b) => b.amount - a.amount),
+      _topMultas: players
+        .filter(p => p.isPlayer)
+        .map(p => {
+          const total = Object.keys(p).filter(k => k.startsWith('Multa ')).reduce((sum, k) => {
+            const v = p[k] ? parseFloat(p[k].toString().replace(',', '.')) : 0;
+            return sum + (isNaN(v) ? 0 : v);
+          }, 0);
+          return { nombre: p.nombre, total };
+        })
+        .filter(p => p.total > 0)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5)
     },
     stats
   };
@@ -447,24 +462,23 @@ const Finanzas = ({ finances }) => {
           </div>
         </Card>
 
-        <Card className="border-t-4 border-t-brand-warning">
-          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-brand-warning">
-            <Icons.Trophy /> Adelantos (El Banco)
+        <Card className="border-t-4 border-t-brand-danger">
+          <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-brand-danger">
+            <Icons.Alert /> Top 5 Multados
           </h3>
-          <p className="text-xs text-gray-400 mb-4">Jugadores que han puesto dinero de su bolsillo para el equipo (gastos).</p>
-          <div className="space-y-4">
-            {adelantos.length === 0 ? (
-              <p className="text-gray-500 italic text-center">Nadie ha adelantado dinero.</p>
-            ) : (
-              adelantos.map((p, i) => (
-                <div key={p.nombre} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg border border-brand-warning border-opacity-30">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-brand-warning bg-opacity-20 flex items-center justify-center text-brand-warning text-xs font-bold">{i+1}</div>
-                    <span className="font-medium text-brand-warning">{p.nombre}</span>
-                  </div>
-                  <span className="font-bold text-brand-warning">+{p.amount} €</span>
+          <p className="text-xs text-gray-400 mb-4">Jugadores con más multas acumuladas en la temporada.</p>
+          <div className="space-y-3">
+            {[...finances._topMultas || []].map((p, i) => (
+              <div key={p.nombre} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg border border-brand-danger border-opacity-30">
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 rounded-full bg-brand-danger bg-opacity-20 flex items-center justify-center text-brand-danger text-xs font-bold">{i+1}</div>
+                  <span className="font-medium text-white">{p.nombre}</span>
                 </div>
-              ))
+                <span className="font-bold text-brand-danger">{p.total} €</span>
+              </div>
+            ))}
+            {(!finances._topMultas || finances._topMultas.length === 0) && (
+              <p className="text-gray-500 italic text-center">No hay multas registradas.</p>
             )}
           </div>
         </Card>
