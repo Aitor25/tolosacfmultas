@@ -312,7 +312,7 @@ function processData(rawData, overrideMonth) {
       totalDonaciones,
       monthlyStats: filteredMonthlyStats,
       adelantos: adelantosData.sort((a, b) => b.amount - a.amount),
-      _topMultas: players
+      _topMultas: playersData
         .filter(p => p.isPlayer)
         .map(p => {
           const total = Object.keys(p).filter(k => k.startsWith('Multa ')).reduce((sum, k) => {
