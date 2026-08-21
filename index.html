@@ -204,8 +204,11 @@ function processData(rawData, overrideMonth) {
         throw new Error("Formato de fila inválido.");
       }
 
-      const nombreStr = row.Nombre ? row.Nombre.toString().trim() : "";
-      
+      const nombreRaw = row.Nombre ? row.Nombre.toString().trim() : "";
+      // Un "*" al final del nombre marca a alguien exento de balones (ex-jugador, entrenador...)
+      const exentoBalon = /\*\s*$/.test(nombreRaw);
+      const nombreStr = nombreRaw.replace(/\*\s*$/, "").trim();
+
       // Validar fila completamente vacía o sin nombre
       if (!nombreStr) {
         const hasOtherData = Object.keys(row).some(k => k !== "Nombre" && row[k] && row[k].toString().trim() !== "" && row[k].toString().trim() !== "-");
@@ -272,11 +275,13 @@ function processData(rawData, overrideMonth) {
           const valCuota = row[`Cuota ${m}`] ? row[`Cuota ${m}`].toString().trim() : "";
           if (valCuota === "") cuotasDeuda.push(m);
         });
-        // Balones: solo meses que existen en el sheet (Sep-May)
-        requiredMonths.filter(m => BALON_MONTHS.includes(m)).forEach(m => {
-          const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
-          if (valBalon === "") balonesDeuda.push(m);
-        });
+        // Balones: solo meses que existen en el sheet (Sep-May). Los exentos (*) nunca deben balón.
+        if (!exentoBalon) {
+          requiredMonths.filter(m => BALON_MONTHS.includes(m)).forEach(m => {
+            const valBalon = row[`Balon ${m}`] ? row[`Balon ${m}`].toString().trim() : "";
+            if (valBalon === "") balonesDeuda.push(m);
+          });
+        }
 
         if (playerAdelantado > 0) {
           adelantosData.push({ nombre: nombreStr, amount: playerAdelantado });
@@ -297,6 +302,7 @@ function processData(rawData, overrideMonth) {
         playersData.push({
           nombre: nombreStr,
           isPlayer,
+          exentoBalon,
           totalIngresado: playerIngresado,
           totalAdelantado: playerAdelantado,
           totalMultas,
@@ -523,7 +529,7 @@ const Dashboard = ({ players }) => {
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-black ${i===0 ? 'bg-yellow-400' : i===1 ? 'bg-gray-300' : i===2 ? 'bg-amber-600' : 'bg-brand-primary bg-opacity-50 text-white'}`}>
                     {i+1}
                   </div>
-                  <span className="font-medium">{p.nombre}</span>
+                  <span className={`font-medium ${p.exentoBalon ? 'text-brand-purple' : ''}`}>{p.nombre}</span>
                 </div>
                 <span className="font-bold text-lg">{p.totalIngresado} €</span>
               </div>
@@ -541,7 +547,7 @@ const Dashboard = ({ players }) => {
               .slice(0, 5)
               .map((p, i) => (
               <div key={p.nombre} className="flex justify-between items-center bg-dark-card bg-opacity-50 p-3 rounded-lg border border-brand-danger border-opacity-30">
-                <span className="font-medium">{p.nombre}</span>
+                <span className={`font-medium ${p.exentoBalon ? 'text-brand-purple' : ''}`}>{p.nombre}</span>
                 <div className="flex flex-col items-end gap-1 text-xs">
                   {p.cuotasDeuda.length > 0 && <span className="text-brand-danger font-bold">{p.cuotasDeuda.length} Cuotas pendientes</span>}
                   {p.balonesDeuda.length > 0 && <span className="text-brand-warning font-bold">{p.balonesDeuda.length} Balones pendientes</span>}
@@ -560,8 +566,10 @@ const Dashboard = ({ players }) => {
 
 const SectionDebt = ({ players, type, title, icon, dataKey }) => {
   if (!players) return null;
-  const alDiaCount = players.filter(p => p[dataKey].length === 0).length;
-  const percentage = Math.round((alDiaCount / players.length) * 100) || 0;
+  // Los exentos de balón (marcados con * en el nombre) no aparecen en esta sección
+  const visiblePlayers = type === 'Balón' ? players.filter(p => !p.exentoBalon) : players;
+  const alDiaCount = visiblePlayers.filter(p => p[dataKey].length === 0).length;
+  const percentage = Math.round((alDiaCount / visiblePlayers.length) * 100) || 0;
 
   return (
     <div className="space-y-6">
@@ -574,7 +582,7 @@ const SectionDebt = ({ players, type, title, icon, dataKey }) => {
               <p className="text-gray-400">Progreso del Equipo</p>
               <h3 className="text-3xl font-bold text-brand-success">{percentage}%</h3>
             </div>
-            <p className="text-gray-400">{alDiaCount} de {players.length} jugadores al día</p>
+            <p className="text-gray-400">{alDiaCount} de {visiblePlayers.length} jugadores al día</p>
           </div>
           <div className="w-full bg-dark rounded-full h-4 overflow-hidden">
             <div className="bg-brand-success h-4 transition-all duration-1000 ease-out" style={{ width: `${percentage}%` }}></div>
@@ -587,9 +595,9 @@ const SectionDebt = ({ players, type, title, icon, dataKey }) => {
               <span className="w-2 h-2 rounded-full bg-brand-success"></span> Al Día
             </h4>
             <div className="space-y-2">
-              {players.filter(p => p[dataKey].length === 0).map(p => (
+              {visiblePlayers.filter(p => p[dataKey].length === 0).map(p => (
                 <div key={p.nombre} className="p-3 bg-dark-card rounded-lg flex justify-between items-center border border-brand-success border-opacity-30">
-                  <span>{p.nombre}</span>
+                  <span className={p.exentoBalon ? 'text-brand-purple' : ''}>{p.nombre}</span>
                   <Icons.Check className="text-brand-success w-5 h-5" />
                 </div>
               ))}
@@ -601,11 +609,11 @@ const SectionDebt = ({ players, type, title, icon, dataKey }) => {
               <span className="w-2 h-2 rounded-full bg-brand-danger animate-pulse"></span> Morosos
             </h4>
             <div className="space-y-2">
-              {players.filter(p => p[dataKey].length > 0)
+              {visiblePlayers.filter(p => p[dataKey].length > 0)
                 .sort((a, b) => b[dataKey].length - a[dataKey].length)
                 .map(p => (
                 <div key={p.nombre} className="p-3 bg-dark-card rounded-lg flex justify-between items-center border border-brand-danger border-opacity-30">
-                  <span>{p.nombre}</span>
+                  <span className={p.exentoBalon ? 'text-brand-purple' : ''}>{p.nombre}</span>
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-brand-danger bg-brand-danger bg-opacity-20 px-2 py-1 rounded">
                       Debe {p[dataKey].length} meses
@@ -637,9 +645,14 @@ const PlayersList = ({ players }) => {
             )}
             
             <div className="flex justify-between items-start mb-4 mt-2">
-              <h3 className="text-xl font-bold">{p.nombre}</h3>
+              <h3 className={`text-xl font-bold ${p.exentoBalon ? 'text-brand-purple' : ''}`}>{p.nombre}</h3>
             </div>
-            
+            {p.exentoBalon && (
+              <span className="inline-block mb-3 text-[10px] font-bold text-brand-purple bg-brand-purple bg-opacity-20 px-2 py-0.5 rounded">
+                Sin Balón
+              </span>
+            )}
+
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="bg-dark rounded-lg p-2 text-center border border-brand-primary border-opacity-20">
                 <p className="text-[10px] text-gray-400 uppercase">Ingresado</p>
@@ -658,11 +671,15 @@ const PlayersList = ({ players }) => {
               </div>
               {p.cuotasDeuda.length > 0 && <div className="text-xs text-brand-danger px-2">Meses: {p.cuotasDeuda.join(', ')}</div>}
 
-              <div className="bg-dark rounded-lg p-3 flex justify-between items-center">
-                <span className="text-gray-400 text-sm">Balones</span>
-                <DebtBadge count={p.balonesDeuda.length} type="balón" />
-              </div>
-              {p.balonesDeuda.length > 0 && <div className="text-xs text-brand-warning px-2">Meses: {p.balonesDeuda.join(', ')}</div>}
+              {!p.exentoBalon && (
+                <>
+                  <div className="bg-dark rounded-lg p-3 flex justify-between items-center">
+                    <span className="text-gray-400 text-sm">Balones</span>
+                    <DebtBadge count={p.balonesDeuda.length} type="balón" />
+                  </div>
+                  {p.balonesDeuda.length > 0 && <div className="text-xs text-brand-warning px-2">Meses: {p.balonesDeuda.join(', ')}</div>}
+                </>
+              )}
             </div>
           </Card>
         ))}
