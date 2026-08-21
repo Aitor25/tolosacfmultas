@@ -53,6 +53,9 @@
         }
         window._fbAuth = firebase.auth();
         window._fbDb = firebase.firestore();
+        // Guarda la sesión en el dispositivo para no tener que volver a loguearse cada vez
+        window._fbAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+          .catch(e => console.error("No se pudo activar la persistencia de sesión:", e));
     })();
     </script>
     <script type="text/babel">
@@ -1078,7 +1081,7 @@ const App = ({ user, isAdmin, onShowAdmin }) => {
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 leading-tight">
-                  Multas <span className="text-brand-primary">Wall Street</span>
+                  Multas
                 </h1>
                 <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest mt-0.5">Balance Neto: {data.finances ? data.finances.balanceNeto : 0}€</p>
               </div>
