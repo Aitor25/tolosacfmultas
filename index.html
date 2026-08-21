@@ -698,7 +698,7 @@ const PlayersList = ({ players }) => {
 // ============================================================================
 const ADMIN_EMAIL = 'agarciah10@gmail.com';
 
-const LoginScreen = () => {
+const LoginScreen = ({ redirectError }) => {
   const [error, setError] = React.useState('');
   const [loading, setLoading] = React.useState(false);
 
@@ -718,9 +718,13 @@ const LoginScreen = () => {
     setError(''); setLoading(true);
     try {
       const provider = new firebase.auth.GoogleAuthProvider();
-      await window._fbAuth.signInWithPopup(provider);
-    } catch(e) { setError(translateError(e.code)); }
-    setLoading(false);
+      // signInWithRedirect en vez de popup: en Safari, el popup pierde la sesión
+      // porque Firebase gestiona el login en otro dominio (tolosacfmultas.firebaseapp.com)
+      // y Safari bloquea el almacenamiento de terceros. El redirect completo sí cuenta
+      // como visita de primera mano a ese dominio, así que Safari deja guardar la sesión.
+      await window._fbAuth.signInWithRedirect(provider);
+      // La página navega fuera; no hace falta apagar el loading aquí.
+    } catch(e) { setError(translateError(e.code)); setLoading(false); }
   };
 
   const handleEmail = async (e) => {
@@ -797,7 +801,7 @@ const LoginScreen = () => {
               </p>
             </form>
           )}
-          {error && <div className="mt-4 text-center text-sm text-brand-danger bg-red-900 bg-opacity-20 border border-red-800 rounded-lg p-3">{error}</div>}
+          {(error || redirectError) && <div className="mt-4 text-center text-sm text-brand-danger bg-red-900 bg-opacity-20 border border-red-800 rounded-lg p-3">{error || translateError(redirectError)}</div>}
         </div>
       </div>
     </div>
@@ -905,6 +909,15 @@ const AuthWrapper = () => {
   const [currentUser, setCurrentUser] = React.useState(null);
   const [isAdmin, setIsAdmin] = React.useState(false);
   const [showAdmin, setShowAdmin] = React.useState(false);
+  const [redirectError, setRedirectError] = React.useState('');
+
+  React.useEffect(() => {
+    // Captura errores del login por redirect (p.ej. cuenta bloqueada, popup cerrado, etc.)
+    window._fbAuth.getRedirectResult().catch((e) => {
+      console.error('Error de redirect login:', e);
+      setRedirectError(e.code || 'Error al iniciar sesión.');
+    });
+  }, []);
 
   React.useEffect(() => {
     const unsub = window._fbAuth.onAuthStateChanged(async (user) => {
@@ -950,7 +963,7 @@ const AuthWrapper = () => {
       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
     </div>;
   }
-  if (authState === 'login') return <LoginScreen />;
+  if (authState === 'login') return <LoginScreen redirectError={redirectError} />;
   if (authState === 'pending') return <PendingScreen user={currentUser} />;
   if (showAdmin) return <AdminPanel onClose={() => setShowAdmin(false)} />;
   return <App user={currentUser} isAdmin={isAdmin} onShowAdmin={() => setShowAdmin(true)} />;
