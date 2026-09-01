@@ -316,6 +316,14 @@ function processData(rawData, overrideMonth) {
           return sum + (isNaN(n) || n < 0 ? 0 : n);
         }, 0);
 
+        // Total pagado en balones (la "multa media" incluye multas + balones)
+        const balonesPorMes = {};
+        Object.keys(row).filter(k => k.startsWith('Balon ')).forEach(k => { balonesPorMes[k] = row[k]; });
+        const totalBalonesPagados = Object.values(balonesPorMes).reduce((sum, v) => {
+          const n = parseFloat((v||'').toString().replace(',','.'));
+          return sum + (isNaN(n) || n < 0 ? 0 : n);
+        }, 0);
+
         // Exento de cuota Y balón a la vez = paga todo junto al final de temporada
         const exentoAnual = exentoBalon && exentoCuota;
 
@@ -329,6 +337,7 @@ function processData(rawData, overrideMonth) {
           totalAdelantado: playerAdelantado,
           totalMultas,
           totalCuotasPagadas,
+          totalBalonesPagados,
           mayorMulta,
           cuotasDeuda,
           balonesDeuda
@@ -344,15 +353,16 @@ function processData(rawData, overrideMonth) {
 
   // Media de cuota y multa del resto del equipo, para estimar cuánto le toca
   // a quien paga todo junto al final de temporada (en vez de mes a mes).
-  // Cuota media: solo entre quien paga cuota normalmente (da igual si paga balón).
-  // Multa media: solo entre quien paga cuota Y balón normalmente (muestra más "típica").
-  const cuotaReferencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota);
-  const multaReferencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota && !p.exentoBalon);
-  const cuotaMedia = cuotaReferencePlayers.length
-    ? Math.round(cuotaReferencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / cuotaReferencePlayers.length)
+  // Ambas medias se calculan entre quien paga cuota normalmente (# no marcado),
+  // da igual si además paga balón o no. Quedan fuera: exentos de cuota (#) y
+  // quien paga todo al final de año (*#).
+  // La "multa media" suma el dinero de multas Y de balones de cada jugador.
+  const referencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota);
+  const cuotaMedia = referencePlayers.length
+    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / referencePlayers.length)
     : 0;
-  const multaMedia = multaReferencePlayers.length
-    ? Math.round(multaReferencePlayers.reduce((s, p) => s + p.totalMultas, 0) / multaReferencePlayers.length)
+  const multaMedia = referencePlayers.length
+    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalMultas + p.totalBalonesPagados, 0) / referencePlayers.length)
     : 0;
   playersData.filter(p => p.exentoAnual).forEach(p => {
     p.cuotaMedia = cuotaMedia;
