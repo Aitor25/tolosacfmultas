@@ -372,6 +372,11 @@ function processData(rawData, overrideMonth) {
     p.multaMedia = multaMedia;
     p.totalEstimado = cuotaMedia + multaMedia;
   });
+  // Quien lleva "." paga cuota normal pero no multas mes a mes: le mostramos
+  // la multa media estimada en vez de su "mayor multa" (que siempre sería "-")
+  playersData.filter(p => p.fueraMediaMultas && !p.exentoAnual).forEach(p => {
+    p.multaMedia = multaMedia;
+  });
 
   // Filtrar meses futuros para la gráfica
   const filteredMonthlyStats = {};
@@ -757,8 +762,10 @@ const PlayersList = ({ players, user }) => {
                 <p className="text-lg font-bold text-brand-primary">{p.totalIngresado} €</p>
               </div>
               <div className="bg-dark rounded-lg p-2 text-center border border-brand-danger border-opacity-20">
-                <p className="text-[10px] text-gray-400 uppercase">Mayor Multa</p>
-                <p className="text-lg font-bold text-brand-danger">{p.mayorMulta > 0 ? p.mayorMulta + " €" : "-"}</p>
+                <p className="text-[10px] text-gray-400 uppercase">{p.fueraMediaMultas ? "Multa media a pagar" : "Mayor Multa"}</p>
+                <p className="text-lg font-bold text-brand-danger">
+                  {p.fueraMediaMultas ? p.multaMedia + " €" : (p.mayorMulta > 0 ? p.mayorMulta + " €" : "-")}
+                </p>
               </div>
             </div>
 
