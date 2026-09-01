@@ -208,12 +208,14 @@ function processData(rawData, overrideMonth) {
       }
 
       const nombreRaw = row.Nombre ? row.Nombre.toString().trim() : "";
-      // Marcadores al final del nombre: "*" exento de balones, "#" exento de cuotas
-      // (se pueden combinar en cualquier orden y con espacios entre ellos: "Jon * #")
-      const markerMatch = nombreRaw.match(/[\s*#]+$/);
+      // Marcadores al final del nombre: "*" exento de balones, "#" exento de cuotas,
+      // "." no cuenta para la media de multas (aunque pague cuota y siga en Cuotas/Balones)
+      // (se pueden combinar en cualquier orden y con espacios entre ellos: "Jon * # .")
+      const markerMatch = nombreRaw.match(/[\s*#.]+$/);
       const markers = markerMatch ? markerMatch[0] : "";
       const exentoBalon = markers.includes("*");
       const exentoCuota = markers.includes("#");
+      const fueraMediaMultas = markers.includes(".");
       const nombreStr = (markers ? nombreRaw.slice(0, -markers.length) : nombreRaw).trim();
 
       // Validar fila completamente vacía o sin nombre
@@ -333,6 +335,7 @@ function processData(rawData, overrideMonth) {
           exentoBalon,
           exentoCuota,
           exentoAnual,
+          fueraMediaMultas,
           totalIngresado: playerIngresado,
           totalAdelantado: playerAdelantado,
           totalMultas,
@@ -353,16 +356,16 @@ function processData(rawData, overrideMonth) {
 
   // Media de cuota y multa del resto del equipo, para estimar cuánto le toca
   // a quien paga todo junto al final de temporada (en vez de mes a mes).
-  // Ambas medias se calculan entre quien paga cuota normalmente (# no marcado),
-  // da igual si además paga balón o no. Quedan fuera: exentos de cuota (#) y
-  // quien paga todo al final de año (*#).
-  // La "multa media" suma el dinero de multas Y de balones de cada jugador.
-  const referencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota);
-  const cuotaMedia = referencePlayers.length
-    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / referencePlayers.length)
+  // Cuota media: entre quien paga cuota normalmente (# no marcado), da igual balón.
+  // Multa media: lo mismo, pero además fuera quien lleva "." (no está en el día a
+  // día, aunque pague cuota). Suma dinero de multas Y de balones de cada jugador.
+  const cuotaReferencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota);
+  const multaReferencePlayers = cuotaReferencePlayers.filter(p => !p.fueraMediaMultas);
+  const cuotaMedia = cuotaReferencePlayers.length
+    ? Math.round(cuotaReferencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / cuotaReferencePlayers.length)
     : 0;
-  const multaMedia = referencePlayers.length
-    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalMultas + p.totalBalonesPagados, 0) / referencePlayers.length)
+  const multaMedia = multaReferencePlayers.length
+    ? Math.round(multaReferencePlayers.reduce((s, p) => s + p.totalMultas + p.totalBalonesPagados, 0) / multaReferencePlayers.length)
     : 0;
   playersData.filter(p => p.exentoAnual).forEach(p => {
     p.cuotaMedia = cuotaMedia;
