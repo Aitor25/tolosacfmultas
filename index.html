@@ -343,13 +343,16 @@ function processData(rawData, overrideMonth) {
   });
 
   // Media de cuota y multa del resto del equipo, para estimar cuánto le toca
-  // a quien paga todo junto al final de temporada (en vez de mes a mes)
-  const referencePlayers = playersData.filter(p => p.isPlayer && !p.exentoAnual);
-  const cuotaMedia = referencePlayers.length
-    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / referencePlayers.length)
+  // a quien paga todo junto al final de temporada (en vez de mes a mes).
+  // Cuota media: solo entre quien paga cuota normalmente (da igual si paga balón).
+  // Multa media: solo entre quien paga cuota Y balón normalmente (muestra más "típica").
+  const cuotaReferencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota);
+  const multaReferencePlayers = playersData.filter(p => p.isPlayer && !p.exentoCuota && !p.exentoBalon);
+  const cuotaMedia = cuotaReferencePlayers.length
+    ? Math.round(cuotaReferencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / cuotaReferencePlayers.length)
     : 0;
-  const multaMedia = referencePlayers.length
-    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalMultas, 0) / referencePlayers.length)
+  const multaMedia = multaReferencePlayers.length
+    ? Math.round(multaReferencePlayers.reduce((s, p) => s + p.totalMultas, 0) / multaReferencePlayers.length)
     : 0;
   playersData.filter(p => p.exentoAnual).forEach(p => {
     p.cuotaMedia = cuotaMedia;
