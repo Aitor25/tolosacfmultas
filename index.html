@@ -713,9 +713,14 @@ const PlayersList = ({ players, user }) => {
   const regularPlayers = players.filter(p => !p.exentoAnual);
   const yearEndPlayers = players.filter(p => p.exentoAnual);
   const myIdx = findMyPlayerIndex(regularPlayers, user);
-  const orderedPlayers = myIdx > 0
+  const myFirstPlayers = myIdx > 0
     ? [regularPlayers[myIdx], ...regularPlayers.slice(0, myIdx), ...regularPlayers.slice(myIdx + 1)]
     : regularPlayers;
+  // Quien lleva "." (no cuenta para la media de multas) va al final de la lista
+  const orderedPlayers = [
+    ...myFirstPlayers.filter(p => !p.fueraMediaMultas),
+    ...myFirstPlayers.filter(p => p.fueraMediaMultas)
+  ];
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold flex items-center gap-2"><Icons.User /> Plantilla al Detalle</h2>
