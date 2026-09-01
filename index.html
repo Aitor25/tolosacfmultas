@@ -308,14 +308,27 @@ function processData(rawData, overrideMonth) {
           return (!isNaN(n) && n > max) ? n : max;
         }, 0);
 
+        // Total pagado en cuotas (para calcular la "cuota media" de quien paga todo al final de año)
+        const cuotasPorMes = {};
+        Object.keys(row).filter(k => k.startsWith('Cuota ')).forEach(k => { cuotasPorMes[k] = row[k]; });
+        const totalCuotasPagadas = Object.values(cuotasPorMes).reduce((sum, v) => {
+          const n = parseFloat((v||'').toString().replace(',','.'));
+          return sum + (isNaN(n) || n < 0 ? 0 : n);
+        }, 0);
+
+        // Exento de cuota Y balón a la vez = paga todo junto al final de temporada
+        const exentoAnual = exentoBalon && exentoCuota;
+
         playersData.push({
           nombre: nombreStr,
           isPlayer,
           exentoBalon,
           exentoCuota,
+          exentoAnual,
           totalIngresado: playerIngresado,
           totalAdelantado: playerAdelantado,
           totalMultas,
+          totalCuotasPagadas,
           mayorMulta,
           cuotasDeuda,
           balonesDeuda
@@ -327,6 +340,21 @@ function processData(rawData, overrideMonth) {
       stats.ignoredRows++;
       stats.logs.push(`Fila ${index + 2} (${row.Nombre || 'Sin Nombre'}): ${e.message}`);
     }
+  });
+
+  // Media de cuota y multa del resto del equipo, para estimar cuánto le toca
+  // a quien paga todo junto al final de temporada (en vez de mes a mes)
+  const referencePlayers = playersData.filter(p => p.isPlayer && !p.exentoAnual);
+  const cuotaMedia = referencePlayers.length
+    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalCuotasPagadas, 0) / referencePlayers.length)
+    : 0;
+  const multaMedia = referencePlayers.length
+    ? Math.round(referencePlayers.reduce((s, p) => s + p.totalMultas, 0) / referencePlayers.length)
+    : 0;
+  playersData.filter(p => p.exentoAnual).forEach(p => {
+    p.cuotaMedia = cuotaMedia;
+    p.multaMedia = multaMedia;
+    p.totalEstimado = cuotaMedia + multaMedia;
   });
 
   // Filtrar meses futuros para la gráfica
@@ -665,10 +693,13 @@ function findMyPlayerIndex(players, user) {
 
 const PlayersList = ({ players, user }) => {
   if (!players) return null;
-  const myIdx = findMyPlayerIndex(players, user);
+  // Quien paga todo junto al final de temporada tiene su propia mini sección, aparte del resto
+  const regularPlayers = players.filter(p => !p.exentoAnual);
+  const yearEndPlayers = players.filter(p => p.exentoAnual);
+  const myIdx = findMyPlayerIndex(regularPlayers, user);
   const orderedPlayers = myIdx > 0
-    ? [players[myIdx], ...players.slice(0, myIdx), ...players.slice(myIdx + 1)]
-    : players;
+    ? [regularPlayers[myIdx], ...regularPlayers.slice(0, myIdx), ...regularPlayers.slice(myIdx + 1)]
+    : regularPlayers;
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold flex items-center gap-2"><Icons.User /> Plantilla al Detalle</h2>
@@ -734,6 +765,31 @@ const PlayersList = ({ players, user }) => {
           </Card>
         ))}
       </div>
+
+      {yearEndPlayers.length > 0 && (
+        <div className="pt-2">
+          <h3 className="text-sm font-semibold text-gray-400 mb-3">Pagan todo junto al final de temporada</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {yearEndPlayers.map(p => (
+              <Card key={p.nombre} className="border border-brand-purple border-opacity-30">
+                <h3 className="text-lg font-bold mb-3">{p.nombre}</h3>
+                <div className="bg-brand-purple bg-opacity-10 rounded-lg p-3">
+                  <p className="text-[11px] text-brand-purple mb-2">Paga junto a final de temporada</p>
+                  <div className="flex justify-between text-sm text-gray-200 mb-1">
+                    <span>Cuota media</span><span className="font-semibold">{p.cuotaMedia} €</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-200">
+                    <span>Multa media</span><span className="font-semibold">{p.multaMedia} €</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-white mt-2 pt-2 border-t border-brand-purple border-opacity-30">
+                    <span className="font-semibold">Total estimado</span><span className="font-semibold">{p.totalEstimado} €</span>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
